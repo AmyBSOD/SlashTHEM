@@ -3718,6 +3718,7 @@ register boolean force, here;
 			{
 			    
 				pline("One of your objects was destroyed by rust!");
+				remove_worn_item(otmp, FALSE);
 				delobj(obj);
 				/* 5lo: Unpunish when destroying a ball/chain chained to you - fixes a segfault */
 				    if (obj == uball) unpunish();
