@@ -695,7 +695,8 @@ static struct trobj UngMoldWand[] = {
 	{ 0, 0, 0, 0, 0 }
 };
 static struct trobj AutomatonItem[] = {
-	{ POT_OIL, 0, POTION_CLASS, 1, 0 },
+	{ POT_OIL, 0, POTION_CLASS, 2, 0 },
+	{ SKELETON_KEY, 0, TOOL_CLASS, 1, 0 },
 	{ 0, 0, 0, 0, 0 }
 };
 static struct trobj TrollItemA[] = {

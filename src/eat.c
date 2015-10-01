@@ -18,7 +18,10 @@ STATIC_PTR int NDECL(eatfood);
 STATIC_PTR void FDECL(costly_tin, (const char*));
 STATIC_PTR int NDECL(opentin);
 STATIC_PTR int NDECL(unfaint);
-
+#if 0
+STATIC_PTR int NDECL(windclock);
+STATIC_PTR int NDECL(rehumanize_wrapper);
+#endif
 #ifdef OVLB
 STATIC_DCL const char *FDECL(food_xname, (struct obj *,BOOLEAN_P));
 STATIC_DCL void FDECL(choke, (struct obj *));
@@ -91,6 +94,16 @@ const char *hu_stat[] = {
 	"Fainting",
 	"Fainted ",
 	"Starved "
+};
+
+const char * cahu_stat[] = {
+  "OvrWound",
+  "        ",
+  "Waning  ",
+  "Unwound ",
+  "Slipping",
+  "Slipped ",
+  "Stopped "
 };
 
 #endif /* OVLB */
@@ -2925,6 +2938,82 @@ bite()
 	return 0;
 }
 
+int rehumanize_wrapper(){
+  rehumanize();
+  return 0;
+}
+
+int
+start_clockwinding(key)
+  struct obj * key;
+{
+  char buf[BUFSZ], qbuf[QBUFSZ];
+  int turns,ret;
+
+  if (key->otyp != SKELETON_KEY)
+    return 0;
+  You("use the key to wind up your clockwork.");
+  Sprintf(qbuf, "How many turns?");
+  getlin(qbuf, buf);
+  (void)mungspaces(buf);
+  if (buf[0] == '\033' || buf[0] == '\0') ret = 0;
+  else ret = sscanf(buf, "%d", &turns);
+
+  if (ret != 1 || turns <= 0){
+    pline(Never_mind);
+    return 0;
+  }
+  victual.piece = key;
+  victual.canchoke = TRUE;
+  victual.usedtime = 0;
+  victual.fullwarn = FALSE;
+  victual.reqtime = turns;
+  Sprintf(msgbuf, "winding");
+  set_occupation(windclock, msgbuf, 0);
+  return 1;
+}
+
+
+
+int
+windclock()
+{ 
+  if (victual.reqtime == victual.usedtime){
+    occupation = 0;
+    You("finish winding.");
+    newuhs(FALSE);
+    victual.piece = 0;
+  }else if (!carried(victual.piece)){
+    newuhs(FALSE);
+    stop_occupation();
+    victual.piece = 0;
+    return 0;
+  }else if(victual.canchoke && u.uhunger >= 3000) {
+    Your("mainspring is wound too tight!");
+    Your("clockwork breaks apart!");
+    killer_format = KILLED_BY;
+    killer = "overclocking";
+    done(DIED);
+    victual.piece = 0;
+    return 0;
+  }else if (u.uhunger >= 2500 && !victual.fullwarn) {
+    pline("You're having a hard time cranking the key.");
+    victual.fullwarn = TRUE;
+    if (yn_function("Stop winding?",ynchars,'y')=='y') {
+      victual.piece = 0;
+      stop_occupation();
+      newuhs(FALSE);
+      return 0;
+    }
+  } else {
+    u.uhunger += 10;
+    victual.usedtime ++;
+  }
+  flags.botl = 1;
+  return 1;
+}
+
+
 #endif /* OVLB */
 #ifdef OVL0
 
@@ -3081,6 +3170,8 @@ boolean incr;
 	static unsigned save_hs;
 	static boolean saved_hs = FALSE;
 	int h = u.uhunger;
+	boolean clockwork = ((Race_if(PM_CLOCKWORK_AUTOMATON)) || Upolyd &&
+			youmonst.data == &mons[PM_CLOCKWORK_AUTOMATON]);
 
 	newhs = (h > 1500) ? SATIATED : /* used to be 1000 --Amy */
 		(h > 150) ? NOT_HUNGRY :
@@ -3129,6 +3220,13 @@ boolean incr;
 			if(!is_fainted() && multi >= 0 /* %% */) {
 				/* stop what you're doing, then faint */
 				stop_occupation();
+			if (clockwork){
+				  Your("clockwork comes to a complete stop.");
+				  flags.soundok=0;
+				  nomul(-5,"immobilized by slipping gears.");
+				  nomovemsg = "Your clockwork catches again.";
+				  afternmv = unfaint;
+			} else {
 				You("faint from lack of food.");
 
 	/* warn player if starvation will happen soon, that is, less than 200 nutrition remaining --Amy */
@@ -3138,10 +3236,17 @@ boolean incr;
 				nomul(-3+(u.uhunger/200), "fainted from lack of food");
 				nomovemsg = "You regain consciousness.";
 				afternmv = unfaint;
+			      }
 				newhs = FAINTED;
 			}
 		} else
 		if(u.uhunger < -(int)(1000 + 50*ACURR(A_CON))) {
+			if (clockwork){
+			  Your("clockwork comes to a complete stop.");
+			  killer_format = KILLED_BY_AN;
+			  killer = "unwound spring";
+			  done(DIED);
+                        } else {
 			u.uhs = STARVED;
 			flags.botl = 1;
 			bot();
@@ -3152,8 +3257,8 @@ boolean incr;
 			/* if we return, we lifesaved, and that calls newuhs */
 			return;
 		}
+	    }
 	}
-
 	if(newhs != u.uhs) {
 		if(newhs >= WEAK && u.uhs < WEAK)
 			losestr(1);	/* this may kill you -- see below */
@@ -3161,6 +3266,18 @@ boolean incr;
 			losestr(-1);
 		switch(newhs){
 		case HUNGRY:
+			if (clockwork){
+			  if (Hallucination)
+			    Your((!incr)? "cuckoo only feels hungry now.":
+				"cuckoo is feeling hungry.");
+			  else
+			    You_feel((!incr) ? "your mainspring tightening." :
+				"the power of your mainspring waning.");
+			  if (incr && occupation && occupation != windclock)
+			    stop_occupation();
+			  break;
+			}
+
 			if (Hallucination) {
 			    You((!incr) ?
 				"now have a lesser case of the munchies." :
@@ -3174,6 +3291,17 @@ boolean incr;
 			    stop_occupation();
 			break;
 		case WEAK:
+			if (clockwork){
+			  You_feel("your mainspring %s and your gears %s.",
+			      (Hallucination)?"sprunging":"unwinding",
+			      (!incr)?"still slipping":
+			      (u.uhunger < 45 ) ? "slipping":
+			      "starting to slip");  
+			  if (incr && occupation && occupation != windclock)
+			    stop_occupation();
+			  break;
+			}
+
 			if (Hallucination)
 			    pline((!incr) ?
 				  "You still have the munchies." :
