@@ -624,7 +624,7 @@ int ttyp;
 		if (oldobjs != newobjs)	/* something unearthed */
 			(void) pickup(1);	/* detects pit */
 	    } else if(mtmp) {
-		if(is_flyer(mtmp->data) || is_floater(mtmp->data)) {
+		if(is_flyer(mtmp->data) || is_levitating(mtmp)) {
 		    if(canseemon(mtmp))
 			pline("%s %s over the pit.", Monnam(mtmp),
 						     (is_flyer(mtmp->data)) ?
@@ -690,7 +690,7 @@ int ttyp;
 		    impact_drop((struct obj *)0, x, y, 0);
 		if (mtmp) {
 		     /*[don't we need special sokoban handling here?]*/
-		    if (is_flyer(mtmp->data) || is_floater(mtmp->data) ||
+		    if (is_flyer(mtmp->data) || is_levitating(mtmp) ||
 		        mtmp->data == &mons[PM_WUMPUS] ||
 			(mtmp->wormno && count_wsegs(mtmp) > 5) ||
 			mtmp->data->msize >= MZ_HUGE) return;

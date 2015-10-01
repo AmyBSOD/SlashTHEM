@@ -182,7 +182,8 @@ struct obj *otmp;
 	case SPE_SLOW_MONSTER:
 		if (!resist(mtmp, otmp->oclass, 0, NOTELL)) {
 			mon_adjust_speed(mtmp, -1, otmp);
-			m_dowear(mtmp, FALSE); /* might want speed boots */
+			/* might want speed boots */
+			m_dowear(mtmp, FALSE, FALSE); 
 			if (u.uswallow && (mtmp == u.ustuck) &&
 			    is_whirly(mtmp->data)) {
 				You("disrupt %s!", mon_nam(mtmp));
@@ -195,7 +196,8 @@ struct obj *otmp;
 	case WAN_HASTE_MONSTER:
 		if (!resist(mtmp, otmp->oclass, 0, NOTELL)) {
 			mon_adjust_speed(mtmp, 1, otmp);
-			m_dowear(mtmp, FALSE); /* might want speed boots */
+			/* might want speed boots */
+			m_dowear(mtmp, FALSE, FALSE);
 		}
 		break;
 	case SPE_TURN_UNDEAD:
@@ -259,7 +261,7 @@ struct obj *otmp;
 
 		/* format monster's name before altering its visibility */
 		Strcpy(nambuf, Monnam(mtmp));
-		mon_set_minvis(mtmp);
+		mon_set_minvis(mtmp, TRUE);
 		if (!oldinvis && knowninvisible(mtmp)) {
 		    pline("%s turns transparent!", nambuf);
 		    makeknown(otyp);
@@ -3031,6 +3033,10 @@ boolean ordinary;
 			(void) polymon(PM_FLESH_GOLEM);
 		    if (Stoned) fix_petrification();	/* saved! */
 		    /* but at a cost.. */
+
+		    /* If !ordinary, this is a stone-to-flesh cast by a monster,
+		     * don't touch hero's inventory */
+		    if (!ordinary) break;
 		    for (otemp = invent; otemp; otemp = onext) {
 			onext = otemp->nobj;
 			(void) bhito(otemp, obj);
@@ -4331,6 +4337,16 @@ int type;
 
     return (3 - chance) < ac+spell_bonus;
 }
+
+void 
+buzz(type,nd,sx,sy,dx,dy)
+     register int type, nd;
+     register xchar sx,sy;
+     register int dx,dy;
+{
+  dobuzz(type, nd, sx, sy, dx, dy, TRUE);
+}
+
 /* #endif */
 /* type ==   0 to   9 : you shooting a wand */
 /* type ==  10 to  19 : you casting a spell */
@@ -4342,10 +4358,11 @@ int type;
 /* type == -30 to -39 : monster shooting a wand */
 /* called with dx = dy = 0 with vertical bolts */
 void
-buzz(type,nd,sx,sy,dx,dy)
+dobuzz(type,nd,sx,sy,dx,dy,say)
 register int type, nd;
 register xchar sx,sy;
 register int dx,dy;
+boolean say;            /* D: Announce out of sight hit/miss events if true */
 {
     int range, abstype;
     struct rm *lev;
@@ -4575,7 +4592,8 @@ register int dx,dy;
 		    } else {
 			if (!otmp) {
 			    /* normal non-fatal hit */
-			    hit(fltxt, mon, exclam(tmp));
+			    if (say || canseemon(mon))
+			    	hit(fltxt, mon, exclam(tmp));
 			    wounds_message(mon);
 			    if (mblamed && mblamed != mon &&
 				    !DEADMONSTER(mblamed) &&
@@ -4598,7 +4616,8 @@ register int dx,dy;
 		}
 		range -= 2;
 	    } else {
-		miss(fltxt,mon);
+	     	if (say || canseemon(mon))
+		    miss(fltxt,mon);
 	    }
 	} else if (sx == u.ux && sy == u.uy && range >= 0) {
 	    nomul(0, 0);

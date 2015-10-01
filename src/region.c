@@ -18,6 +18,7 @@ static int max_regions = 0;
 #define NO_CALLBACK (-1)
 
 boolean FDECL(inside_gas_cloud, (genericptr,genericptr));
+boolean FDECL(inside_acid_cloud, (genericptr,genericptr));
 boolean FDECL(expire_gas_cloud, (genericptr,genericptr));
 boolean FDECL(revive_cthulhu, (genericptr, genericptr));
 boolean FDECL(inside_rect, (NhRect *,int,int));
@@ -48,10 +49,12 @@ static void FDECL(reset_region_mids, (NhRegion *));
 
 static callback_proc callbacks[] = {
 #define INSIDE_GAS_CLOUD 0
-    inside_gas_cloud,
-#define EXPIRE_GAS_CLOUD 1
-    expire_gas_cloud,
-#define REVIVE_CTHULHU 2	/* Cthulhu comes back... */
+  inside_gas_cloud,
+#define INSIDE_ACID_CLOUD 1
+  inside_acid_cloud,
+#define EXPIRE_GAS_CLOUD 2
+  expire_gas_cloud,
+#define REVIVE_CTHULHU 3	/* Cthulhu comes back... */
     revive_cthulhu
 };
 
@@ -997,6 +1000,61 @@ int damage;
     return cloud;
 }
 
+boolean
+inside_acid_cloud(p1, p2)
+genericptr_t p1;
+genericptr_t p2;
+{
+    NhRegion *reg;
+    struct monst *mtmp;
+    int dam;
+
+    reg = (NhRegion *) p1;
+    dam = (int) reg->arg;
+    if (p2 == NULL) {		/* This means *YOU* Bozo! */
+	/* Blinding is necessary, if only to help the player feel his way
+	 * around (the fog hides the player's glyph) */
+	if (!Blind) make_blinded(1L, FALSE);
+	
+	if (!Acid_resistance) {
+	    /* Acid would probably burn your lungs, as well. */
+	    You("are caught in an acidic fog!");
+	    losehp(rnd(dam) + 5, "acid cloud", KILLED_BY_AN);
+	    return FALSE;
+	} else {
+	    pline("Acidic vapors swirl around you.");
+	    return FALSE;
+	}
+    } else {			/* A monster is inside the cloud */
+	mtmp = (struct monst *) p2;
+
+	if (haseyes(mtmp->data) && mtmp->mcansee) {
+	    mtmp->mblinded = 1;
+	    mtmp->mcansee = 0;
+	}
+
+	if (heros_fault(reg)) setmangry(mtmp);
+
+	/* Acid resistance protects */
+	if (!resists_acid(mtmp)) {
+	    if (cansee(mtmp->mx, mtmp->my))
+		pline("%s is burned by the acid!", Monnam(mtmp));
+	    mtmp->mhp -= rnd(dam) + 5;
+	    if (mtmp->mhp <= 0) {
+		if (heros_fault(reg))
+		    killed(mtmp);
+		else
+		    monkilled(mtmp, "", AD_DRST);
+		if (mtmp->mhp <= 0) {	/* not lifesaved */
+		    return TRUE;
+		}
+	    }
+	}
+    }
+    return FALSE;		/* Monster is still alive */
+}
+
+
 NhRegion *
 create_gas_cloud(x, y, radius, damage)
 xchar x, y;
@@ -1029,6 +1087,17 @@ int damage;
     cloud->visible = TRUE;
     cloud->glyph = cmap_to_glyph(S_cloud);
     add_region(cloud);
+    return cloud;
+}
+
+NhRegion *
+create_acid_cloud(x, y, radius, damage)
+xchar x, y;
+int radius;
+int damage;
+{
+    NhRegion *cloud = create_gas_cloud(x, y, radius, damage);
+    if (cloud) cloud->inside_f = INSIDE_ACID_CLOUD;
     return cloud;
 }
 

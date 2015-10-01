@@ -126,8 +126,9 @@ const char *name;
 }
 
 void
-store_version(fd)
+store_version(fd, bones)
 int fd;
+boolean bones;
 {
 	const static struct version_info version_data = {
 			VERSION_NUMBER, VERSION_FEATURES,
@@ -135,8 +136,17 @@ int fd;
 	};
 
 	bufoff(fd);
-	/* bwrite() before bufon() uses plain write() */
-	bwrite(fd,(genericptr_t)&version_data,(unsigned)(sizeof version_data));
+#ifdef BONES_MASKED_FEATURES
+	if (bones) {
+	    struct version_info port_version = version_data;
+	    port_version.feature_set &= ~BONES_MASKED_FEATURES;
+	    bwrite(fd,(genericptr_t)&port_version,
+		     (unsigned)(sizeof port_version));
+	} else
+#endif
+	    /* bwrite() before bufon() uses plain write() */
+	    bwrite(fd,(genericptr_t)&version_data,
+		     (unsigned)(sizeof version_data));
 	bufon(fd);
 	return;
 }

@@ -1873,6 +1873,114 @@ long adj;
   accelerate_timer(BURN_OBJECT, obj, adj);
 }
 
+/* Start a levitation timer for a monster */
+void 
+begin_levitation(mon, duration)
+struct monst *mon;
+int duration;
+{
+    stop_timer(TIMEOUT_LEV, (genericptr_t) mon);
+    start_timer(duration, TIMER_MONSTER, TIMEOUT_LEV, (genericptr_t) mon);
+}
+
+static 
+void
+end_levitation(arg, timeout)
+genericptr_t arg;
+long   timeout;
+{
+    struct monst *mon 		= (struct monst *) arg;
+    boolean grace 		= FALSE;
+    boolean has_levitation	= mon && !!get_equiv_armor(mon, LEVITATION);
+    boolean needs_recast  	= FALSE;
+
+    if (!mon || DEADMONSTER(mon)) return ;
+
+    needs_recast = (is_pool(mon->mx,mon->my) || is_lava(mon->mx, mon->my)) && 
+	    		!is_flyer(mon->data) && !is_floater(mon->data) &&
+			!is_swimmer(mon->data);
+
+    if (!has_levitation) {
+	if (needs_recast) {
+	    if (timeout != monstermoves) {
+		/* Timeout ended while away - restart it */
+		begin_levitation(mon, 10 + rnd(10));
+		return ;
+	    }
+
+	    /* Monster tries to recast levitation, if necessary */
+	    if (cancast(mon, SPE_LEVITATION)) {
+		mcast_escape_spell(mon, SPE_LEVITATION);
+		return ;
+	    }
+
+	    if (mon->mspec_used || rn2(100) >= 20) {
+		/* Give monster another chance */
+		begin_levitation(mon, 1);
+		return ;
+	    }
+	}
+	/* Big trouble! */
+	if (canseemon(mon))
+	    pline("%s levitation spell wears off.", s_suffix(Monnam(mon)));
+
+	mon->mintrinsics &= ~MR2_LEVITATE;
+	minliquid(mon);
+    }
+}
+
+void 
+begin_invis(mon, duration)
+struct monst *mon;
+int duration;
+{
+    stop_timer(TIMEOUT_INVIS, (genericptr_t) mon);
+    start_timer(duration, TIMER_MONSTER, TIMEOUT_INVIS, (genericptr_t) mon);
+}
+
+static 
+void 
+end_invis(arg, timeout)
+genericptr_t arg;
+long timeout;
+{
+    struct monst *mon = (struct monst *) arg;
+    
+    if (!get_equiv_armor(mon, INVIS)) {
+	if (mon->minvis && !(mon->minvis = mon->perminvis)) {
+	    /* 'suddenly reappears' sounds strange if you never saw it
+	     * disappearing, but what else can we do? */
+	    if (canseemon(mon)) {
+		if (See_invisible)
+		    pline("%s seems to unfade.", Monnam(mon));
+		else
+		    pline("%s suddenly reappears.", Monnam(mon));
+		newsym(mon->mx, mon->my);		/* make it appear */
+	    	if (mon->wormno) see_wsegs(mon);	/* and any tail too */
+	    }
+	}
+    }
+}
+
+void
+begin_speed(mon, duration)
+struct monst *mon;
+int duration;
+{
+    stop_timer(TIMEOUT_SPEED, (genericptr_t) mon);
+    start_timer(duration, TIMER_MONSTER, TIMEOUT_SPEED, (genericptr_t) mon);
+}
+
+static
+void
+end_speed(arg, timeout)
+genericptr_t arg;
+long timeout;
+{
+    struct monst *mon = (struct monst *) arg;
+    mon_adjust_speed(mon, 0, NULL);
+}
+
 void
 do_storms()
 {
@@ -2012,7 +2120,10 @@ static const ttable timeout_funcs[NUM_TIME_FUNCS] = {
     TTAB(revive_mon,	(timeout_proc)0,	"revive_mon"),
     TTAB(burn_object,	cleanup_burn,		"burn_object"),
     TTAB(hatch_egg,	(timeout_proc)0,	"hatch_egg"),
-    TTAB(fig_transform, (timeout_proc)0,	"fig_transform"),
+    TTAB(fig_transform,	(timeout_proc)0,	"fig_transform"),
+    TTAB(end_levitation,(timeout_proc)0,	"end_levitation"),
+    TTAB(end_invis,	(timeout_proc)0,	"end_invis"),
+    TTAB(end_speed,	(timeout_proc)0,	"end_speed"),
     TTAB(unpoly_mon,    (timeout_proc)0,	"unpoly_mon"),
 #ifdef FIREARMS
     TTAB(bomb_blow,     (timeout_proc)0,	"bomb_blow"),
@@ -2276,7 +2387,8 @@ mon_stop_timers(mon)
 
     for (prev = 0, curr = timer_base; curr; curr = next_timer) {
 	next_timer = curr->next;
-	if (curr->kind == TIMER_MONSTER && curr->arg == (genericptr_t)mon) {
+	if (curr->kind == TIMER_MONSTER && 
+		(!mon || curr->arg == (genericptr_t)mon)) {
 	    if (prev)
 		prev->next = curr->next;
 	    else

@@ -26,7 +26,6 @@ STATIC_DCL int FDECL(precheck, (struct monst *,struct obj *));
 STATIC_DCL void FDECL(mzapmsg, (struct monst *,struct obj *,BOOLEAN_P));
 STATIC_DCL void FDECL(mreadmsg, (struct monst *,struct obj *));
 STATIC_DCL void FDECL(mquaffmsg, (struct monst *,struct obj *));
-STATIC_PTR int FDECL(mbhitm, (struct monst *,struct obj *));
 STATIC_DCL void FDECL(mbhit,
 	(struct monst *,int,int FDECL((*),(MONST_P,OBJ_P)),
 	int FDECL((*),(OBJ_P,OBJ_P)),struct obj *));
@@ -475,17 +474,18 @@ struct obj *otmp;
 #define MUSE_UNICORN_HORN 17
 #define MUSE_POT_FULL_HEALING 18
 #define MUSE_LIZARD_CORPSE 19
+#define MUSE_SPE_TELEPORT_AWAY 20
 /* [Tom] my new items... */
-#define MUSE_WAN_HEALING 20
-#define MUSE_WAN_EXTRA_HEALING 21
-#define MUSE_WAN_CREATE_HORDE 22
-#define MUSE_POT_VAMPIRE_BLOOD 23
-#define MUSE_WAN_FULL_HEALING 24
-#define MUSE_SCR_ROOT_PASSWORD_DETECTION 25
-#define MUSE_RIN_TIMELY_BACKUP 26
-#define MUSE_SCR_SUMMON_UNDEAD 27
-#define MUSE_WAN_SUMMON_UNDEAD 28
-#define MUSE_SCR_HEALING 29
+#define MUSE_WAN_HEALING 21
+#define MUSE_WAN_EXTRA_HEALING 22
+#define MUSE_WAN_CREATE_HORDE 23
+#define MUSE_POT_VAMPIRE_BLOOD 24
+#define MUSE_WAN_FULL_HEALING 25
+#define MUSE_SCR_ROOT_PASSWORD_DETECTION 26
+#define MUSE_RIN_TIMELY_BACKUP 27
+#define MUSE_SCR_SUMMON_UNDEAD 28
+#define MUSE_WAN_SUMMON_UNDEAD 29
+#define MUSE_SCR_HEALING 30
 /*
 #define MUSE_INNATE_TPT 9999
  * We cannot use this.  Since monsters get unlimited teleportation, if they
@@ -619,6 +619,11 @@ struct monst *mtmp;
 	}
 
 	if (levl[x][y].typ == STAIRS && !stuck && !immobile) {
+	    /* Use is_floater instead of is_levitating, since a levitating
+	     * monster can be assumed to be in control of its levitation 
+	     * FIXME: Handle cases where levitating monster is not in control,
+	     *        such as from potion quaffing?
+	     */
 		if (x == xdnstair && y == ydnstair && !is_floater(mtmp->data))
 			m.has_defense = MUSE_DOWNSTAIRS;
 		if (x == xupstair && y == yupstair && ledger_no(&u.uz) != 1)
@@ -662,6 +667,9 @@ struct monst *mtmp;
 		}
 	}
 
+	if (cancast(mtmp, SPE_TELEPORT_AWAY))
+	    m.has_defense = MUSE_SPE_TELEPORT_AWAY;
+
 	if (nohands(mtmp->data))	/* can't use objects */
 		goto botm;
 
@@ -694,6 +702,7 @@ struct monst *mtmp;
 		t = 0;		/* ok for monster to dig here */
 
 #define nomore(x) if(m.has_defense==x) continue;
+
 	for (obj = mtmp->minvent; obj; obj = obj->nobj) {
 		/* don't always use the same selection pattern */
 		if (m.has_defense && !rn2(3)) break;
@@ -716,6 +725,7 @@ struct monst *mtmp;
 		}
 		nomore(MUSE_WAN_TELEPORTATION_SELF);
 		nomore(MUSE_WAN_TELEPORTATION);
+		nomore(MUSE_SPE_TELEPORT_AWAY);
 		if(obj->otyp == WAN_TELEPORTATION && obj->spe > 0) {
 		    /* use the TELEP_TRAP bit to determine if they know
 		     * about noteleport on this level or not.  Avoids
@@ -843,6 +853,7 @@ struct monst *mtmp;
 			m.has_defense = MUSE_SCR_CREATE_MONSTER;
 		}
 	}
+
 botm:	return((boolean)(!!m.has_defense));
 #undef nomore
 }
@@ -897,6 +908,9 @@ struct monst *mtmp;
 			You_hear("a bugle playing reveille!");
 		awaken_soldiers();
 		return 2;
+	case MUSE_SPE_TELEPORT_AWAY:
+	        mcast_escape_spell(mtmp, SPE_TELEPORT_AWAY);
+	        return 2;
 	case MUSE_WAN_TELEPORTATION_SELF:
 		if ((mtmp->isshk && inhishop(mtmp))
 		       || mtmp->isgd || mtmp->ispriest) return 2;
@@ -1783,13 +1797,14 @@ struct monst *mtmp;
 #undef nomore
 }
 
-STATIC_PTR
 int
 mbhitm(mtmp, otmp)
 register struct monst *mtmp;
 register struct obj *otmp;
 {
 	int tmp;
+	boolean wand   = otmp->oclass == WAND_CLASS;
+	char *effector = wand? "wand" : "spell";
 
 	boolean reveal_invis = FALSE;
 	if (mtmp != &youmonst) {
@@ -1797,19 +1812,42 @@ register struct obj *otmp;
 		if (mtmp->m_ap_type) seemimic(mtmp);
 	}
 	switch(otmp->otyp) {
+	case SPE_STONE_TO_FLESH:
+		if (mtmp == &youmonst)
+		    zapyourself(otmp, FALSE);
+		else
+		    bhitm(mtmp, otmp);
+		break;
+	case SPE_DRAIN_LIFE:
+		if (mtmp == &youmonst) {
+		    /* Unlike AD_DRLI, you don't get the chance to resist */
+		    losexp("life drainage", FALSE);
+		} else if (!resists_drli(mtmp)) {
+		    tmp = d(2,6);
+		    if (canseemon(mtmp))
+			pline("%s suddenly seems weaker!", Monnam(mtmp));
+		    mtmp->mhpmax -= tmp;
+		    if (mtmp->m_lev < 1)
+			tmp = mtmp->mhp;
+		    else mtmp->m_lev--;
+		    mtmp->mhp -= tmp;
+		    monkilled(mtmp, "", AD_RBRE);
+		}
+		break;
 	case WAN_STRIKING:
+	case SPE_FORCE_BOLT:
 		reveal_invis = TRUE;
 		if (mtmp == &youmonst) {
-			if (zap_oseen) makeknown(WAN_STRIKING);
+			if (zap_oseen && wand) makeknown(WAN_STRIKING);
 			if (Antimagic) {
 			    shieldeff(u.ux, u.uy);
 			    pline("Boing!");
 			} else if (rnd(20) < 10 + u.uac) {
-			    pline_The("wand hits you!");
+			    pline_The("%s hits you!", effector);
 			    tmp = d(2,12);
 			    if(Half_spell_damage) tmp = (tmp+1) / 2;
-			    losehp(tmp, "wand", KILLED_BY_AN);
-			} else pline_The("wand misses you.");
+			    losehp(tmp, effector, KILLED_BY_AN);
+			} else pline_The("%s misses you.", effector);
 			stop_occupation();
 			nomul(0, 0);
 		} else if (resists_magm(mtmp)) {
@@ -1817,19 +1855,20 @@ register struct obj *otmp;
 			pline("Boing!");
 		} else if (rnd(20) < 10+find_mac(mtmp)) {
 			tmp = d(2,12);
-			hit("wand", mtmp, exclam(tmp));
+			hit(effector, mtmp, exclam(tmp));
 			(void) resist(mtmp, otmp->oclass, tmp, TELL);
-			if (cansee(mtmp->mx, mtmp->my) && zap_oseen)
+			if (cansee(mtmp->mx, mtmp->my) && zap_oseen && wand)
 				makeknown(WAN_STRIKING);
 		} else {
-			miss("wand", mtmp);
-			if (cansee(mtmp->mx, mtmp->my) && zap_oseen)
+			miss(effector, mtmp);
+			if (cansee(mtmp->mx, mtmp->my) && zap_oseen && wand)
 				makeknown(WAN_STRIKING);
 		}
 		break;
 	case WAN_TELEPORTATION:
+	case SPE_TELEPORT_AWAY:
 		if (mtmp == &youmonst) {
-			if (zap_oseen) makeknown(WAN_TELEPORTATION);
+			if (zap_oseen && wand) makeknown(WAN_TELEPORTATION);
 			tele();
 		} else {
 			/* for consistency with zap.c, don't identify */
@@ -1887,18 +1926,31 @@ register struct obj *otmp;
 	return 0;
 }
 
-/* A modified bhit() for monsters.  Based on bhit() in zap.c.  Unlike
- * buzz(), bhit() doesn't take into account the possibility of a monster
- * zapping you, so we need a special function for it.  (Unless someone wants
- * to merge the two functions...)
- */
-STATIC_OVL void
+STATIC_OVL
+void
 mbhit(mon,range,fhitm,fhito,obj)
 struct monst *mon;			/* monster shooting the wand */
 register int range;			/* direction and range */
 int FDECL((*fhitm),(MONST_P,OBJ_P));
 int FDECL((*fhito),(OBJ_P,OBJ_P));	/* fns called when mon/obj hit */
 struct obj *obj;			/* 2nd arg to fhitm/fhito */
+{
+    dombhit(mon, range, fhitm, fhito, obj, -10, -10);
+}
+
+/* A modified bhit() for monsters.  Based on bhit() in zap.c.  Unlike
+ * buzz(), bhit() doesn't take into account the possibility of a monster
+ * zapping you, so we need a special function for it.  (Unless someone wants
+ * to merge the two functions...)
+ */
+void
+dombhit(mon,range,fhitm,fhito,obj,dx,dy)
+struct monst *mon;			/* monster shooting the wand */
+register int range;			/* direction and range */
+int FDECL((*fhitm),(MONST_P,OBJ_P));
+int FDECL((*fhito),(OBJ_P,OBJ_P));	/* fns called when mon/obj hit */
+struct obj *obj;			/* 2nd arg to fhitm/fhito */
+int dx, dy;
 {
 	register struct monst *mtmp;
 	register struct obj *otmp;
@@ -1907,8 +1959,14 @@ struct obj *obj;			/* 2nd arg to fhitm/fhito */
 
 	bhitpos.x = mon->mx;
 	bhitpos.y = mon->my;
-	u.dx = ddx = sgn(mon->mux - mon->mx);
-	u.dy = ddy = sgn(mon->muy - mon->my);
+ 
+ 	if (dx == -10) {
+ 	    u.dx = ddx = sgn(mon->mux - mon->mx);
+ 	    u.dy = ddy = sgn(mon->muy - mon->my);
+ 	} else {
+ 	    ddx = dx;
+ 	    ddy = dy;
+ 	}
 
 	while(range-- > 0) {
 		int x,y;
@@ -1925,6 +1983,7 @@ struct obj *obj;			/* 2nd arg to fhitm/fhito */
 		if (find_drawbridge(&x,&y))
 		    switch (obj->otyp) {
 			case WAN_STRIKING:
+			case SPE_FORCE_BOLT:
 			    destroy_drawbridge(x,y);
 		    }
 		if(bhitpos.x==u.ux && bhitpos.y==u.uy) {
@@ -1958,6 +2017,7 @@ struct obj *obj;			/* 2nd arg to fhitm/fhito */
 			case WAN_OPENING:
 			case WAN_LOCKING:
 			case WAN_STRIKING:
+			case SPE_FORCE_BOLT:
 			    if (doorlock(obj, bhitpos.x, bhitpos.y)) {
 				makeknown(obj->otyp);
 				/* if a shop door gets broken, add it to
@@ -2722,7 +2782,10 @@ skipmsg:
 		    mquaffmsg(mtmp, otmp);
 		/* format monster's name before altering its visibility */
 		Strcpy(nambuf, See_invisible ? Monnam(mtmp) : mon_nam(mtmp));
-		mon_set_minvis(mtmp);
+		mon_set_minvis(mtmp, otmp->blessed 
+					|| otmp->otyp == WAN_MAKE_INVISIBLE);
+		if (!otmp->blessed && otmp->otyp == POT_INVISIBILITY)
+			begin_invis(mtmp, 30 + rnd(otmp->cursed? 10 : 30));
 		if (vismon && mtmp->minvis) {	/* was seen, now invisible */
 		    if (See_invisible)
 			pline("%s body takes on a %s transparency.",
@@ -2741,7 +2804,8 @@ skipmsg:
 	case MUSE_WAN_HASTE_MONSTER:
 		mzapmsg(mtmp, otmp, TRUE);
 		otmp->spe--;
-		mon_adjust_speed(mtmp, 1, otmp);
+		mon_adjust_speed(mtmp, 4, otmp);
+		begin_speed(mtmp, 30 + rnd(15));
 		return 2;
 	case MUSE_POT_SPEED:
 		mquaffmsg(mtmp, otmp);
@@ -2749,7 +2813,9 @@ skipmsg:
 		   different methods of maintaining speed ratings:
 		   player's character becomes "very fast" temporarily;
 		   monster becomes "one stage faster" permanently */
-		mon_adjust_speed(mtmp, 1, otmp);
+		mon_adjust_speed(mtmp, 4, otmp);
+		begin_speed(mtmp, 
+			25 + rnd(otmp->blessed? 40 : otmp->cursed? 10 : 20));
 		m_useup(mtmp, otmp);
 		return 2;
 	case MUSE_WAN_POLYMORPH:
@@ -3204,6 +3270,21 @@ boolean by_you;
 	    if ((obj->otyp == POT_ACID) || (obj->otyp == CORPSE &&
 	    		(obj->corpsenm == PM_LIZARD || (acidic(&mons[obj->corpsenm]) && obj->corpsenm != PM_GREEN_SLIME)))) {
 		mon_consume_unstone(mon, obj, by_you, TRUE);
+		return TRUE;
+	    }
+	}
+
+	/* Last ditch attempt - can we cast stf? */
+	if (cancast(mon, SPE_STONE_TO_FLESH)) {
+	    if (mcast_escape_spell(mon, SPE_STONE_TO_FLESH)) {
+		if (canseemon(mon)) {
+		    if (Hallucination)
+			pline("What a pity - %s just ruined a future "
+					"piece of art!",
+					mon_nam(mon));
+		    else
+			pline("%s seems limber!", Monnam(mon));
+		}
 		return TRUE;
 	    }
 	}

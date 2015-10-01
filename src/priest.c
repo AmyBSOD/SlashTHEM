@@ -55,7 +55,7 @@ register xchar omx,omy,gx,gy;
 		if (m_carrying(mtmp, SKELETON_KEY)) allowflags |= BUSTDOOR;
 	}
 	if (is_giant(mtmp->data)) allowflags |= BUSTDOOR;
-	cnt = mfndpos(mtmp, poss, info, allowflags);
+	cnt = mfndpos(mtmp, poss, info, allowflags, NULL);
 
 	if(mtmp->isshk && avoid && uondoor) { /* perhaps we cannot avoid him */
 		for(i=0; i<cnt; i++)
@@ -230,7 +230,7 @@ boolean sanctum;   /* is it the seat of the high priest? */
 		    else
 			curse(obj);
 		    (void) mpickobj(priest, obj);
-		    m_dowear(priest, TRUE);
+		    m_dowear(priest, TRUE, FALSE);
 		    if (!(obj->owornmask & W_ARM)) {
 			obj_extract_self(obj);
 			obfree(obj, (struct obj *)0);

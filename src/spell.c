@@ -51,7 +51,6 @@ STATIC_DCL void NDECL(cast_protection);
 STATIC_DCL void NDECL(cast_reflection);
 STATIC_DCL void FDECL(spell_backfire, (int));
 STATIC_DCL const char *FDECL(spelltypemnemonic, (int));
-STATIC_DCL int FDECL(isqrt, (int));
 
 boolean
 spell_known(int sbook_id)
@@ -1467,7 +1466,7 @@ dump_spells()
 #endif
 
 /* Integer square root function without using floating point. */
-STATIC_OVL int
+int
 isqrt(val)
 int val;
 {

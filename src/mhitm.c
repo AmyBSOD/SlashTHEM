@@ -311,43 +311,8 @@ mattackm(magr, mdef)
 	otmp = (struct obj *)0;
 	attk = 1;
 	switch (mattk->aatyp) {
-	    case AT_BREA:
-	    case AT_SPIT:
-		if (range) {
-		    if (mattk->aatyp == AT_BREA)
-			res[i] = breamm(magr, mdef, mattk);
-		    else
-			res[i] = spitmm(magr, mdef, mattk);
-		    /* We can't distinguish no action from failed attack
-		     * so assume defender doesn't waken unless actually hit.
-		     */
-		    strike = res[i] & MM_HIT;
-		} else
-		    strike = 0;
-		attk = 0;
-		break;
-
-	    case AT_MAGC:
-		/* [ALI] Monster-on-monster spell casting always fails. This
-		 * is partly for balance reasons and partly because the
-		 * amount of code required to implement it is prohibitive.
-		 */
-		strike = 0;
-		attk = 0;
-		if (canseemon(magr) && couldsee(magr->mx, magr->my)) {
-		    char buf[BUFSZ];
-		    Strcpy(buf, Monnam(magr));
-		    if (vis)
-			pline("%s points at %s, then curses.", buf,
-				mon_nam(mdef));
-		    else
-			pline("%s points and curses at something.", buf);
-		} else if (flags.soundok)
-		    Norep("You hear a mumbled curse.");
-		break;
-
 	    case AT_WEAP:
-		/* "ranged" attacks */
+	      /* "ranged" attacks */
 #ifdef REINCARNATION
 		if (!Is_rogue_level(&u.uz) && range) {
 #else
@@ -359,6 +324,17 @@ mattackm(magr, mdef)
 		    break;
 		}
 		/* "hand to hand" attacks */
+ 		if (distmin(magr->mx,magr->my,mdef->mx,mdef->my) > 1) {
+ 		    /* D: Do a ranged attack here! */
+ 		    strike = thrwmm(magr, mdef);
+ 		    if (DEADMONSTER(mdef))
+ 			res[i] = MM_DEF_DIED;
+ 
+ 		    if (DEADMONSTER(magr))
+ 			res[i] |= MM_AGR_DIED;
+ 
+ 		    break;
+ 		}
 		if (magr->weapon_check == NEED_WEAPON || !MON_WEP(magr)) {
 		    magr->weapon_check = NEED_HTH_WEAPON;
 		    if (mon_wield_item(magr) != 0) return 0;
@@ -383,7 +359,10 @@ mattackm(magr, mdef)
 	    case AT_TENT:
 		/* Nymph that teleported away on first attack? */
 		if (distmin(magr->mx,magr->my,mdef->mx,mdef->my) > 1)
-		    return MM_MISS;
+		    /*return MM_MISS;*/
+		    /* Continue because the monster may have a ranged
+		     * attack */
+		    continue;  
 		/* Monsters won't attack cockatrices physically if they
 		 * have a weapon instead.  This instinct doesn't work for
 		 * players, or under conflict or confusion. 
@@ -430,6 +409,10 @@ mattackm(magr, mdef)
 		break;
 
 	    case AT_EXPL:
+		/* D: Prevent explosions from a distance */
+		if (distmin(magr->mx,magr->my,mdef->mx,mdef->my) > 1)
+		    continue;
+
 		res[i] = explmm(magr, mdef, mattk);
 		if (res[i] == MM_MISS) { /* cancelled--no attack */
 		    strike = 0;
@@ -445,6 +428,11 @@ mattackm(magr, mdef)
 		    break;
 		} 
 #endif
+
+                /* D: Prevent engulf from a distance */
+		if (distmin(magr->mx,magr->my,mdef->mx,mdef->my) > 1)
+		    continue;
+                
 		/* Engulfing attacks are directed at the hero if
 		 * possible. -dlc
 		 */
@@ -458,13 +446,48 @@ mattackm(magr, mdef)
 		}
 		break;
 
+            case AT_BREA:
+                if (!monnear(magr, mdef->mx, mdef->my)) {
+                    strike = breamm(magr, mdef, mattk);
+		
+		    /* We don't really know if we hit or not, but pretend 
+		     * we did */
+		    if (strike) res[i] |= MM_HIT;
+		    if (DEADMONSTER(mdef)) res[i] = MM_DEF_DIED;
+                    if (DEADMONSTER(magr)) res[i] |= MM_AGR_DIED;
+                }
+                else
+                    strike = 0;
+                break;
+
+            case AT_SPIT:
+                if (!monnear(magr, mdef->mx, mdef->my)) {
+                    strike = spitmm(magr, mdef, mattk);
+
+		    /* We don't really know if we hit or not, but pretend 
+		     * we did */
+		    if (strike) res[i] |= MM_HIT;
+                    if (DEADMONSTER(mdef)) res[i] = MM_DEF_DIED;
+                    if (DEADMONSTER(magr)) res[i] |= MM_AGR_DIED;
+                }
+                break;
+
+            case AT_MAGC:
+		/* Tame spellcasters get their day in the sun! */
+		strike = castmm(magr, mattk, mdef);
+		if (strike) res[i] |= MM_HIT;
+		if (DEADMONSTER(mdef)) res[i] = MM_DEF_DIED;
+		if (DEADMONSTER(magr)) res[i] |= MM_AGR_DIED;
+		break;
+                
 	    default:		/* no attack */
 		strike = 0;
 		attk = 0;
 		break;
 	}
 
-	if (attk && !(res[i] & MM_AGR_DIED))
+	if (attk && !(res[i] & MM_AGR_DIED) && 
+		distmin(magr->mx,magr->my,mdef->mx,mdef->my) <= 1)
 	    res[i] = passivemm(magr, mdef, strike, res[i] & MM_DEF_DIED);
 
 	if (res[i] & MM_DEF_DIED) return res[i];

@@ -430,6 +430,17 @@ register struct monst *mtmp;
 	/* check distance and scariness of attacks */
 	distfleeck(mtmp,&inrange,&nearby,&scared);
 
+	/* D: Ideally, this should be someplace else, such as find_defensive
+	 *    itself */
+	if (mtmp->mblinded || mtmp->mconf || mtmp->mstun) {
+	    if (cancast(mtmp, SPE_RESTORE_ABILITY) 
+			    && mcast_escape_spell(mtmp, SPE_RESTORE_ABILITY))
+		return 1;
+	    if (cancast(mtmp, SPE_CURE_BLINDNESS)
+			    && mcast_escape_spell(mtmp, SPE_CURE_BLINDNESS))
+		return 1;
+	}
+
 	if(find_defensive(mtmp)) {
 		if (use_defensive(mtmp) != 0)
 			return 1;
@@ -597,6 +608,9 @@ toofar:
 		    for (a = &mdat->mattk[0]; a < &mdat->mattk[NATTK]; a++) {
 			if (a->aatyp == AT_MAGC && (a->adtyp == AD_SPEL || a->adtyp == AD_CLRC)) {
 			    if (castmu(mtmp, a, FALSE, FALSE)) {
+				/* Monster managed to kill itself, tsk tsk */
+				if (DEADMONSTER(mtmp))
+				    return (1);
 				tmp = 3;
 				break;
 			    }
@@ -699,7 +713,7 @@ register int after;
 	int chi;	/* could be schar except for stupid Sun-2 compiler */
 	boolean likegold=0, likegems=0, likeobjs=0, likemagic=0, conceals=0;
 	boolean likerock=0, can_tunnel=0;
-	boolean can_open=0, can_unlock=0, doorbuster=0;
+	boolean can_open=0, can_unlock=0, doorbuster=0, spell_unlock = FALSE;
 	boolean uses_items=0, setlikes=0;
 	boolean avoid=FALSE;
 	struct permonst *ptr;
@@ -766,7 +780,8 @@ register int after;
 	    can_tunnel = tunnels(ptr);
 	can_open = !(nohands(ptr) || verysmall(ptr));
 	can_unlock = ((can_open && m_carrying(mtmp, SKELETON_KEY)) ||
-		      mtmp->iswiz || is_rider(ptr));
+ 		      mtmp->iswiz || is_rider(ptr) || 
+ 		      (spell_unlock = cancast(mtmp, SPE_KNOCK)));
 /*        doorbuster = is_giant(ptr);*/
 
 	/* WAC add dragon breath */
@@ -848,6 +863,13 @@ not_special:
 	gx = mtmp->mux;
 	gy = mtmp->muy;
 	appr = mtmp->mflee ? -1 : 1;
+
+	if (appr == -1 && cancast(mtmp, SPE_JUMPING)) {
+	    int ret = mcast_escape_spell(mtmp, SPE_JUMPING);
+	    /* Check whether the monster found a good place to jump to */
+	    if (ret) return 3;
+	}
+
 	if (mtmp->mconf || (u.uswallow && mtmp == u.ustuck))
 		appr = 0;
 	else {
@@ -1047,8 +1069,20 @@ not_special:
 	    int ndist, nidist;
 	    register coord *mtrk;
 	    coord poss[9];
+	    int wantslev = 0;
 
-	    cnt = mfndpos(mtmp, poss, info, flag);
+	    cnt = mfndpos(mtmp, poss, info, flag, &wantslev);
+
+	    if (wantslev > 1) {
+		/* mtmp would like to levitate. Can we arrange for it? */
+		if (cancast(mtmp, SPE_LEVITATION)) {
+		    /* Yes! */
+		    mcast_escape_spell(mtmp, SPE_LEVITATION);
+		    /* This turn spent getting airborne */
+		    return 3;
+		}
+	    }
+
 	    chcnt = 0;
 	    jcnt = min(MTSZ, cnt-1);
 	    chi = -1;
@@ -1212,7 +1246,11 @@ postmov:
 				   ptr == &mons[PM_YELLOW_LIGHT])
 				  ? "flows" : "oozes");
 		    } else if(here->doormask & D_LOCKED && can_unlock) {
-			if(btrapped) {
+			if (spell_unlock)
+			    mcast_escape_spell(mtmp, SPE_KNOCK);
+
+			/* Using knock automatically untraps door */
+			if(btrapped && !spell_unlock) {
 			    here->doormask = D_NODOOR;
 			    newsym(mtmp->mx, mtmp->my);
 			    unblock_point(mtmp->mx,mtmp->my); /* vision */
@@ -1300,6 +1338,8 @@ postmov:
 		newsym(mtmp->mx,mtmp->my);
 	    }
 	    if(OBJ_AT(mtmp->mx, mtmp->my) && mtmp->mcanmove) {
+		boolean picked = FALSE;
+
 		/* recompute the likes tests, in case we polymorphed
 		 * or if the "likegold" case got taken above */
 		if (setlikes) {
@@ -1328,7 +1368,10 @@ postmov:
 		    if (meatlithic(mtmp) == 2) return 2;	/* it died */
 		}
 
-		if(g_at(mtmp->mx,mtmp->my) && likegold) mpickgold(mtmp);
+		if(g_at(mtmp->mx,mtmp->my) && likegold) {
+		    mpickgold(mtmp);
+		    picked = TRUE;
+		}
 
 		/* Maybe a cube ate just about anything */
 		/* KMH -- Taz likes organics, too! */
@@ -1339,14 +1382,17 @@ postmov:
 			meatcorpse(mtmp);
 
 		if(!*in_rooms(mtmp->mx, mtmp->my, SHOPBASE) || !rn2(25)) {
-		    boolean picked = FALSE;
+		    boolean more = FALSE;
 
-		    if(likeobjs) picked |= mpickstuff(mtmp, practical);
-		    if(likemagic) picked |= mpickstuff(mtmp, magical);
-		    if(likerock) picked |= mpickstuff(mtmp, boulder_class);
-		    if(likegems) picked |= mpickstuff(mtmp, gem_class);
-		    if(uses_items) picked |= mpickstuff(mtmp, (char *)0);
-		    /*if(picked) mmoved = 3;*/
+		    if(likeobjs) picked |= mpickstuff(mtmp, practical, &more);
+		    if(likemagic) picked |= mpickstuff(mtmp, magical, &more);
+		    if(likerock) picked |= mpickstuff(mtmp, boulder_class,
+				    				&more);
+		    if(likegems) picked |= mpickstuff(mtmp, gem_class, &more);
+		    if(uses_items) picked |= mpickstuff(mtmp, (char *)0,
+				    				       &more);
+		    /*if(picked || mtmp->mfrozen) mmoved = 3;*/
+		    if (picked && !more) m_dowear(mtmp, FALSE, TRUE);
 		}
 
 		if(mtmp->minvis) {

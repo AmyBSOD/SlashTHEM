@@ -3,12 +3,15 @@
 /* NetHack may be freely redistributed.  See license for details. */
 
 #include "hack.h"
+#include "edog.h"
 
 STATIC_DCL int FDECL(drop_throw,(struct monst *, struct obj *,BOOLEAN_P,int,int));
 
 #define URETREATING(x,y) (distmin(u.ux,u.uy,x,y) > distmin(u.ux0,u.uy0,x,y))
 
 #define POLE_LIM 5	/* How far monsters can use pole-weapons */
+
+#define PET_MISSILE_RANGE2 36 /* Square of distance within which pets shoot */
 
 #ifndef OVLB
 
@@ -35,6 +38,13 @@ NEARDATA const char *breathwep[] = {
 NEARDATA const char *hallubreathwep[] = {"fragments", "fire", "frost", "sleep gas", "a disintegration blast", "lightning", "poison gas", "acid", "light", "strange breath #9", "sizzle", "nexus", "slaying", "vomit", "nausea", "repetition", "nether", "chaos", "confusion", "smoke", "--More-- You have died. DYWYPI?", "darkness", "sound", "gravity", "vibration", "penetration", "spitballs", "fart gas", "stinking gas", "slow gas", "rainbows", "air", "balloons", "nitrogen", "chloroform", "prussic acid", "ozone", "spill", "litter", "garbage", "trash", "heat", "cold", "ice", "water", "earth", "hell", "sky", "astral", "stars", "asterisks", "exclamation marks!!!", "feathers", "springs", "fog", "dew", "snow", "drugs", "rock'n'roll", "smog", "sludge", "waste", "temperature", "humidity", "vortices", "clouds"
 
 };
+
+/* The monster that's being shot at when one monster shoots at another */
+STATIC_OVL struct monst *target = 0,
+/* The monster that's doing the shooting/throwing */
+			*archer = 0;
+
+boolean FDECL(m_lined_up, (struct monst *, struct monst *));
 
 /* hero is hit by something other than a monster */
 int
@@ -220,6 +230,7 @@ int
 ohitmon(mon, mtmp, otmp, range, verbose)
 struct monst *mon;  /* monster thrower (if applicable) */
 struct monst *mtmp;	/* accidental target */
+			/* D: May be deliberate target, so added a check */
 struct obj *otmp;	/* missile; might be destroyed by drop_throw */
 int range;		/* how much farther will object travel if it misses */
 			/* Use -1 to signify to keep going even after hit, */
@@ -229,15 +240,27 @@ boolean verbose;  /* give message(s) even when you can't see what happened */
 	int damage, tmp;
 	boolean vis, ismimic;
 	int objgone = 1;
+	struct obj *mon_launcher = archer? MON_WEP(archer) : NULL;
 
 	ismimic = mtmp->m_ap_type && mtmp->m_ap_type != M_AP_MONSTER;
 	vis = cansee(bhitpos.x, bhitpos.y);
 
 	tmp = 5 + find_mac(mtmp) + omon_adj(mtmp, otmp, FALSE);
+	
+	/* D: High level monsters will be more likely to hit */
+	/*    This check applies only if this monster is the target
+	 *    the archer was aiming at. */
+	if (archer && target == mtmp) {
+	    if (archer->m_lev > 5)
+	    	tmp += archer->m_lev - 5;
+	    if (mon_launcher && mon_launcher->oartifact)
+	    	tmp += spec_abon(mon_launcher, mtmp);
+	}
+	
 	if (tmp < rnd(20)) {
 	    if (!ismimic) {
 		if (vis) miss(distant_name(otmp, mshot_xname), mtmp);
-		else if (verbose) pline("It is missed.");
+		else if (verbose && !target) pline("It is missed.");
 	    }
 	    if (!range) { /* Last position; object drops */
 		(void) drop_throw(mon, otmp, 0, mtmp->mx, mtmp->my);
@@ -269,7 +292,8 @@ boolean verbose;  /* give message(s) even when you can't see what happened */
 	    if (ismimic) seemimic(mtmp);
 	    mtmp->msleeping = 0;
 	    if (vis) hit(distant_name(otmp,mshot_xname), mtmp, exclam(damage));
-	    else if (verbose) pline("%s is hit%s", Monnam(mtmp), exclam(damage));
+	    else if (verbose && !target) pline("%s is hit%s", Monnam(mtmp), 
+		    				exclam(damage));
 
 	    if (otmp->opoisoned && is_poisonable(otmp)) {
 		if (resists_poison(mtmp)) {
@@ -288,21 +312,21 @@ boolean verbose;  /* give message(s) even when you can't see what happened */
 		    hates_silver(mtmp->data)) {
 		if (vis) pline_The("silver sears %s flesh!",
 				s_suffix(mon_nam(mtmp)));
-		else if (verbose) pline("Its flesh is seared!");
+		else if (verbose && !target) pline("Its flesh is seared!");
 	    }
 	    if (otmp->otyp == ACID_VENOM && cansee(mtmp->mx,mtmp->my)) {
 		if (resists_acid(mtmp)) {
-		    if (vis || verbose)
+		    if (vis || (verbose && !target))
 			pline("%s is unaffected.", Monnam(mtmp));
 		    damage = 0;
 		} else {
 		    if (vis) pline_The("acid burns %s!", mon_nam(mtmp));
-		    else if (verbose) pline("It is burned!");
+		    else if (verbose && !target) pline("It is burned!");
 		}
 	    }
 	    mtmp->mhp -= damage;
 	    if (mtmp->mhp < 1) {
-		if (vis || verbose)
+		if (vis || (verbose && !target))
 		    pline("%s is %s!", Monnam(mtmp),
 			(nonliving(mtmp->data) || !canspotmon(mtmp))
 			? "destroyed" : "killed");
@@ -567,6 +591,130 @@ m_throw(mon, x, y, dx, dy, range, obj)
 	}
 }
 
+int
+thrwmm(mtmp, mtarg)             /* Monster throws item at monster */
+struct monst *mtmp, *mtarg;
+{
+	struct obj *otmp, *mwep;
+	register xchar x, y;
+	boolean ispole;
+	schar skill;
+	int multishot = 1;
+
+        /* D: Polearms won't be applied by monsters against other monsters */
+	/* Rearranged beginning so monsters can use polearms not in a line */
+	if (mtmp->weapon_check == NEED_WEAPON || !MON_WEP(mtmp)) {
+	    mtmp->weapon_check = NEED_RANGED_WEAPON;
+	    /* mon_wield_item resets weapon_check as appropriate */
+	    if(mon_wield_item(mtmp) != 0) return 0;
+	}
+
+	/* Pick a weapon */
+	otmp = select_rwep(mtmp);
+	if (!otmp) return 0;
+	ispole = is_pole(otmp);
+	skill = objects[otmp->otyp].oc_skill;
+
+        x = mtmp->mx;
+	y = mtmp->my;
+        
+	mwep = MON_WEP(mtmp);		/* wielded weapon */
+
+	if(!ispole && m_lined_up(mtarg, mtmp)) {
+		 /* WAC Catch this since rn2(0) is illegal */
+		int chance = (BOLT_LIM-distmin(x,y,mtarg->mx,mtarg->my) > 0) ?
+			BOLT_LIM-distmin(x,y,mtarg->mx,mtarg->my) : 1;
+		
+		if(!mtarg->mflee || !rn2(chance)) {
+		    const char *verb = "throws";
+
+		    if (otmp->otyp == ARROW
+			|| otmp->otyp == ELVEN_ARROW
+			|| otmp->otyp == ORCISH_ARROW
+			|| otmp->otyp == YA
+  			|| otmp->otyp == CROSSBOW_BOLT) verb = "shoots";
+
+                    if(ammo_and_launcher(otmp, mwep) &&
+					is_launcher(mwep)) {
+			if (dist2(mtmp->mx, mtmp->my, mtarg->mx, mtarg->my) > 
+					PET_MISSILE_RANGE2)
+				return 0; /* Out of range */
+		    }
+
+		    if (canseemon(mtmp)) {
+			pline("%s %s %s!", Monnam(mtmp), verb,
+					obj_is_pname(otmp) ?
+					the(singular(otmp, xname)) :
+					an(singular(otmp, xname)));
+		    }
+
+		    /* Multishot calculations */
+		    if ((ammo_and_launcher(otmp, mwep) || skill == P_DAGGER ||
+				skill == -P_DART || skill == -P_SHURIKEN) &&
+			    !mtmp->mconf) {
+  			/* Assumes lords are skilled, princes are expert */
+			if (is_lord(mtmp->data)) multishot++;
+			if (is_prince(mtmp->data)) multishot += 2;
+
+			/*  Elven Craftsmanship makes for light,  quick bows */
+			if (otmp->otyp == ELVEN_ARROW && !otmp->cursed)
+			    multishot++;
+			if (mwep && mwep->otyp == ELVEN_BOW &&
+				!mwep->cursed) multishot++;
+			/* 1/3 of object enchantment */
+			if (mwep && mwep->spe > 1)
+			    multishot += (long) rounddiv(mwep->spe,3);
+			/* Some randomness */
+			if (multishot > 1L)
+			    multishot = (long) rnd((int) multishot);
+
+			switch (monsndx(mtmp->data)) {
+			case PM_RANGER:
+			    multishot++;
+			    break;
+			case PM_ROGUE:
+			    if (skill == P_DAGGER) multishot++;
+			    break;
+			case PM_SAMURAI:
+			    if (otmp->otyp == YA && mwep &&
+				    mwep->otyp == YUMI) multishot++;
+			    break;
+			default:
+			    break;
+			}
+			{	/* racial bonus */
+			    if (is_elf(mtmp->data) &&
+				    otmp->otyp == ELVEN_ARROW &&
+				    mwep && mwep->otyp == ELVEN_BOW)
+				multishot++;
+			    else if (is_orc(mtmp->data) &&
+				    otmp->otyp == ORCISH_ARROW &&
+				    mwep && mwep->otyp == ORCISH_BOW)
+				multishot++;
+			}
+
+		    }
+ 		    if (otmp->quan < multishot) multishot = (int)otmp->quan;
+ 		    if (multishot < 1) multishot = 1;
+
+                    /* Set target monster */
+		    target = mtarg;
+		    archer = mtmp;
+ 		    while (multishot-- > 0)
+			m_throw(mtmp, mtmp->mx, mtmp->my,
+				sgn(tbx), sgn(tby),
+				distmin(mtmp->mx, mtmp->my,
+					mtarg->mx, mtarg->my),
+				otmp);
+                    archer = (struct monst *)0;
+		    target = (struct monst *)0;
+		    nomul(0,0);
+		    return 1;
+		}
+	}
+        return 0;
+}
+
 #endif /* OVL1 */
 #ifdef OVLB
 
@@ -795,6 +943,58 @@ register struct attack *mattk;
 	return 0;
 }
 
+int
+spitmm(mtmp, mattk, mtarg)	/* monster spits substance at monster */
+register struct monst *mtmp, *mtarg;
+register struct attack *mattk;
+{
+	register struct obj *otmp;
+        
+	if(mtmp->mcan) {
+
+	    if(flags.soundok)
+		pline("A dry rattle comes from %s throat.",
+		                      s_suffix(mon_nam(mtmp)));
+	    return 0;
+	}
+	if(m_lined_up(mtarg, mtmp)) {
+		switch (mattk->adtyp) {
+		    case AD_BLND:
+		    case AD_DRST:
+			otmp = mksobj(BLINDING_VENOM, TRUE, FALSE);
+			break;
+		    default:
+			impossible("bad attack type in spitmu");
+				/* fall through */
+		    case AD_ACID:
+			otmp = mksobj(ACID_VENOM, TRUE, FALSE);
+			break;
+		}
+		if(!rn2(BOLT_LIM-distmin(mtmp->mx,mtmp->my,mtarg->mx,mtarg->my))) {
+		    if (canseemon(mtmp))
+			pline("%s spits venom!", Monnam(mtmp));
+		    target = mtarg;
+		    m_throw(mtmp, mtmp->mx, mtmp->my, sgn(tbx), sgn(tby),
+			distmin(mtmp->mx,mtmp->my,mtarg->mx,mtarg->my), otmp);
+		    target = (struct monst *)0;
+		    nomul(0,0);
+                    
+                    /* If this is a pet, it'll get hungry. Minions and
+                     * spell beings won't hunger */
+                    if (mtmp->mtame && !mtmp->isminion) {
+                        struct edog *dog = EDOG(mtmp);
+                        
+                        /* Hunger effects will catch up next move */
+                        if (dog->hungrytime > 1)
+                            dog->hungrytime -= 5;
+                    }
+
+		    return 1;
+		}
+	}
+	return 0;
+}
+
 #endif /* OVLB */
 #ifdef OVL1
 
@@ -869,6 +1069,56 @@ xchar ax, ay;
 }
 
 
+int
+breamm(mtmp, mattk, mtarg)        /* monster breathes at monster (ranged) */
+register struct monst *mtmp, *mtarg;
+register struct attack  *mattk;
+{
+	/* if new breath types are added, change AD_ACID to max type */
+	int typ = (mattk->adtyp == AD_RBRE) ? rnd(AD_ACID) : mattk->adtyp ;
+                
+	if(m_lined_up(mtarg, mtmp)) {
+
+	    if(mtmp->mcan) {
+		if(flags.soundok) {
+		    if(canseemon(mtmp))
+			pline("%s coughs.", Monnam(mtmp));
+		    else
+			You_hear("a cough.");
+		}
+		return(0);
+	    }
+	    if(!mtmp->mspec_used && rn2(3)) {
+
+		if((typ >= AD_MAGM) && (typ <= AD_ACID)) {
+
+		    if(canseemon(mtmp))
+			pline("%s breathes %s!", Monnam(mtmp),
+			      breathwep[typ-1]);
+		    dobuzz((int) (-20 - (typ-1)), (int)mattk->damn,
+			 mtmp->mx, mtmp->my, sgn(tbx), sgn(tby), FALSE);
+		    nomul(0,0);
+		    /* breath runs out sometimes. Also, give monster some
+		     * cunning; don't breath if the target fell asleep.
+		     */
+		    mtmp->mspec_used = 6+rn2(18);
+      
+                    /* If this is a pet, it'll get hungry. Minions and
+                     * spell beings won't hunger */
+                    if (mtmp->mtame && !mtmp->isminion) {
+                        struct edog *dog = EDOG(mtmp);
+                        
+                        /* Hunger effects will catch up next move */
+                        if (dog->hungrytime >= 10)
+                            dog->hungrytime -= 10;
+                    }
+		} else impossible("Breath weapon %d used", typ-1);
+	    } else
+                return (0);
+	}
+	return(1);
+}
+
 boolean
 linedup(ax, ay, bx, by)
 register xchar ax, ay, bx, by;
@@ -886,6 +1136,13 @@ register xchar ax, ay, bx, by;
 	    else if(clear_path(ax,ay,bx,by)) return TRUE;
 	}
 	return FALSE;
+}
+
+boolean
+m_lined_up(mtarg, mtmp)
+register struct monst *mtarg, *mtmp;
+{
+        return (linedup(mtarg->mx, mtarg->my, mtmp->mx, mtmp->my));
 }
 
 boolean

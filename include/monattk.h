@@ -110,4 +110,15 @@
 #define MM_DEF_DIED	0x2	/* defender died */
 #define MM_AGR_DIED	0x4	/* aggressor died */
 
+struct monspell {
+    int  spell;	/* Spell ID SPE_foo 					*/
+    int  cost;	/* Cost the caster incurs by using the spell,   	*/
+		/* in terms of mspec_used.				*/
+    int  pref;	/* How much monster likes the spell: all preferences 	*/
+		/* summed up should be less than 100 for attack spells.	*/
+		/* For escape spells, this is how likely the spell is	*/
+		/* work on any given turn.				*/
+    char escape;/* Escape spell if true					*/
+};
+
 #endif /* MONATTK_H */

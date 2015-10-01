@@ -373,7 +373,7 @@ register boolean special;
 					       GAUNTLETS_OF_DEXTERITY));
 		if (rn2(8))
 		    mk_mplayer_armor(mtmp, rnd_class(LOW_BOOTS, LEVITATION_BOOTS));
-		m_dowear(mtmp, TRUE);
+		m_dowear(mtmp, TRUE, FALSE);
 
 		quan = rn2(3) ? rn2(3) : rn2(16);
 		while(quan--)

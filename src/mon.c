@@ -592,9 +592,9 @@ register struct monst *mtmp;
     boolean inpool, inlava, infountain;
 
     inpool = is_pool(mtmp->mx,mtmp->my) &&
-	     !is_flyer(mtmp->data) && !is_floater(mtmp->data);
+	     !is_flyer(mtmp->data) && !is_levitating(mtmp);
     inlava = is_lava(mtmp->mx,mtmp->my) &&
-	     !is_flyer(mtmp->data) && !is_floater(mtmp->data);
+	     !is_flyer(mtmp->data) && !is_levitating(mtmp);
     infountain = IS_FOUNTAIN(levl[mtmp->mx][mtmp->my].typ);
 
 #ifdef STEED
@@ -1190,14 +1190,19 @@ mpickgold(mtmp)
 #ifdef OVL2
 
 boolean
-mpickstuff(mtmp, str)
+mpickstuff(mtmp, str, moreleft)
 	register struct monst *mtmp;
 	register const char *str;
+	boolean *moreleft;
 {
 	register struct obj *otmp, *otmp2;
+	boolean pickedup = FALSE;
 
 /*	prevent shopkeepers from leaving the door of their shop */
 	if(mtmp->isshk && inhishop(mtmp)) return FALSE;
+
+	/* D: If we did something special this turn, we can't pick up stuff */
+	if (mtmp->mfrozen) return FALSE;
 
 	for(otmp = level.objects[mtmp->mx][mtmp->my]; otmp; otmp = otmp2) {
 	    otmp2 = otmp->nexthere;
@@ -1211,10 +1216,23 @@ mpickstuff(mtmp, str)
 			!acidic(&mons[otmp->corpsenm])) continue;
 		if (!touch_artifact(otmp,mtmp)) continue;
 		if (!can_carry(mtmp,otmp)) continue;
-		if (is_pool(mtmp->mx,mtmp->my)) continue;
+		/* D: Any point in staying in the loop over a pool? */
+		if (is_pool(mtmp->mx,mtmp->my)) return FALSE;
 #ifdef INVISIBLE_OBJECTS
 		if (otmp->oinvis && !perceives(mtmp->data)) continue;
 #endif
+
+		/* If we already picked up some stuff and we're here, we'll
+		 * want to grab some stuff next turn as well, so return here
+		 * to prevent a monster with enchanted levitation boots putting
+		 * it on right now */
+		if (pickedup) return (*moreleft = TRUE);
+
+		/* D: Check if we're levitating and need to stop */
+		if (is_levitating(mtmp) && !is_floater(mtmp->data)
+				&& m_stop_levitating(mtmp))
+		    return FALSE;
+
 		if (cansee(mtmp->mx,mtmp->my) && flags.verbose)
 			pline("%s picks up %s.", Monnam(mtmp),
 			      (distu(mtmp->mx, mtmp->my) <= 5) ?
@@ -1224,12 +1242,13 @@ mpickstuff(mtmp, str)
 		if (otmp->otyp == BOULDER)
 		    unblock_point(otmp->ox,otmp->oy);	/* vision */
 		(void) mpickobj(mtmp, otmp);	/* may merge and free otmp */
-		m_dowear(mtmp, FALSE);
 		newsym(mtmp->mx, mtmp->my);
-		return TRUE;			/* pick only one object */
+
+		pickedup = TRUE;		/* pick only one object */
 	    }
 	}
-	return FALSE;
+	
+	return pickedup;
 }
 
 #endif /* OVL2 */
@@ -1329,11 +1348,12 @@ struct obj *otmp;
 
 /* return number of acceptable neighbour positions */
 int
-mfndpos(mon, poss, info, flag)
+mfndpos(mon, poss, info, flag, lev)
 	register struct monst *mon;
 	coord *poss;	/* coord poss[9] */
 	long *info;	/* long info[9] */
 	long flag;
+	int *lev;	/* If levitation would be useful, set this to true */
 {
 	struct permonst *mdat = mon->data;
 	register xchar x,y,nx,ny;
@@ -1350,9 +1370,12 @@ mfndpos(mon, poss, info, flag)
 
 	nodiag = (mdat == &mons[PM_GRID_BUG] || mdat == &mons[PM_GRID_XORN]);
 	wantpool = mdat->mlet == S_EEL;
-	poolok = is_flyer(mdat) || is_clinger(mdat) ||
+	poolok = is_flyer(mdat) || is_levitating(mon) || is_clinger(mdat) ||
 		 (is_swimmer(mdat) && !wantpool);
-	lavaok = is_flyer(mdat) || is_clinger(mdat) || likes_lava(mdat);
+	lavaok = is_flyer(mdat) || is_clinger(mdat) || likes_lava(mdat) ||
+	    	 is_levitating(mon);
+	if (lev) *lev = 0;
+
 	thrudoor = ((flag & (ALLOW_WALL|BUSTDOOR)) != 0L);
 	if (flag & ALLOW_DIG) {
 	    struct obj *mw_tmp;
@@ -1509,6 +1532,7 @@ impossible("A monster looked at a very strange trap of type %d.", ttmp->ttyp);
 				    && ttmp->ttyp != HOLE)
 				      || (!is_flyer(mdat)
 				    && !is_floater(mdat)
+				    && !is_levitating(mon)
 				    && !is_clinger(mdat))
 				      || In_sokoban(&u.uz))
 				&& (ttmp->ttyp != SLP_GAS_TRAP ||
@@ -1532,10 +1556,17 @@ impossible("A monster looked at a very strange trap of type %d.", ttmp->ttyp);
 			}
 		    }
 		}
+
+#ifdef SINKS
+		/* D: Levitating monsters will avoid sinks if possible */
+		if ((mon->mintrinsics & MR2_LEVITATE) && 
+			IS_SINK(levl[nx][ny].typ) &&
+		    	rn2(mon->mhp > 25? 6 : 15)) continue;
+#endif
 		poss[cnt].x = nx;
 		poss[cnt].y = ny;
 		cnt++;
-	    }
+	    } else if (!wantpool && lev) ++*lev;
 	}
 	if(!cnt && wantpool && !is_pool(x,y)) {
 		wantpool = FALSE;
@@ -1871,6 +1902,9 @@ register struct monst *mtmp;
 	if (mtmp == u.usteed)
 		dismount_steed(DISMOUNT_GENERIC);
 #endif
+
+	/* D: Kill monster timers, if any */
+	mon_stop_timers(mtmp);
 
 	mptr = mtmp->data;		/* save this for m_detach() */
 	/* restore chameleon, lycanthropes to true form at death */
@@ -3221,7 +3255,7 @@ boolean msg;
 	if (!(mtmp->misc_worn_check & W_ARMG))
 	    mselftouch(mtmp, "No longer petrify-resistant, ",
 			!flags.mon_moving);
-	m_dowear(mtmp, FALSE);
+	m_dowear(mtmp, FALSE, FALSE);
 
 	/* This ought to re-test can_carry() on each item in the inventory
 	 * rather than just checking ex-giants & boulders, but that'd be

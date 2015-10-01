@@ -602,6 +602,60 @@ struct monst *mon;
     }
 }
 
+STATIC_OVL boolean
+mon_has_launcher(mon, ammo, keep)
+struct monst *mon;
+struct obj   *ammo, *keep;
+{
+	struct obj *obj;
+	
+	for(obj = mon->minvent; obj; obj = obj->nobj)
+	    if (is_launcher(obj) && ammo_and_launcher(ammo, obj))
+		return TRUE;
+
+	for (obj = keep; obj; obj = obj->nobj)
+	    if (is_launcher(obj) && ammo_and_launcher(ammo, obj))
+		return TRUE;
+	return FALSE;
+}
+
+boolean
+keep_ammo(mon, ammo, keep)
+struct monst *mon;
+struct obj   *ammo, *keep;
+{
+	return rn2(3) || mon_has_launcher(mon, ammo, keep)
+#ifdef FIREARMS
+                      || objects[ammo->otyp].w_ammotyp == WP_GRENADE
+#endif
+               ;
+}
+
+STATIC_OVL boolean
+mon_has_ammo(mon, launcher, keep)
+struct monst *mon;
+struct obj   *launcher, *keep;
+{
+	struct obj *obj;
+
+	for (obj = mon->minvent; obj; obj = obj->nobj)
+	    if (ammo_and_launcher(obj, launcher))
+		return TRUE;
+
+	for (obj = keep; obj; obj = obj->nobj)
+	    if (ammo_and_launcher(obj, launcher))			
+		return TRUE;
+	return FALSE;
+}
+
+boolean
+keep_launcher(mon, launcher, keep)
+struct monst *mon;
+struct obj   *launcher, *keep;
+{
+	return rn2(3) || mon_has_ammo(mon, launcher, keep);
+}
+
 /* release the objects the creature is carrying */
 void
 relobj(mtmp,show,is_pet)
@@ -612,11 +666,16 @@ boolean is_pet;		/* If true, pet should keep wielded/worn items */
 	register struct obj *otmp;
 	register int omx = mtmp->mx, omy = mtmp->my;
 	struct obj *keepobj = 0;
-	struct obj *wep = MON_WEP(mtmp);
+	struct obj *wep = MON_WEP(mtmp),
+                   *pref_wep = 0;
 	boolean item1 = FALSE, item2 = FALSE;
+	boolean uses_weap = is_armed(mtmp->data);
 
 	if (!is_pet || mindless(mtmp->data) || is_animal(mtmp->data))
 		item1 = item2 = TRUE;
+        else if (uses_weap)
+                pref_wep = select_hwep(mtmp);
+	
 	if (!tunnels(mtmp->data) || !needspick(mtmp->data))
 		item1 = TRUE;
 
@@ -638,6 +697,23 @@ boolean is_pet;		/* If true, pet should keep wielded/worn items */
 				continue;
 			}
 		}
+		/* D: Smart pets don't drop ranged weapons */
+		if (is_pet && uses_weap && 
+#ifndef GIVE_PATCH
+				!mtmp->mflee && 
+#endif
+				otmp->oclass == WEAPON_CLASS) {
+		    int skill = objects[otmp->otyp].oc_skill;
+		    if ((is_missile(otmp) || otmp == pref_wep ||
+		 (is_ammo(otmp) && keep_ammo(mtmp, otmp, keepobj)) ||
+		 (is_launcher(otmp) && keep_launcher(mtmp, otmp, keepobj)) ||
+			 (skill == P_DAGGER || skill == P_KNIFE))) {
+		        otmp->nobj = keepobj;
+			keepobj    = otmp;
+			continue;
+		    }
+		}
+
 		mdrop_obj(mtmp, otmp, is_pet && flags.verbose);
 	}
 

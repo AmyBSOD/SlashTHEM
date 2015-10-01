@@ -824,8 +824,10 @@ mhurtle(mon, dx, dy, range)
     coord mc, cc;
 
 	/* At the very least, debilitate the monster */
+    if (range > -1) {
 	mon->movement = 0;
 	mon->mstun = 1;
+    }
 
 	/* Is the monster stuck or too heavy to push?
 	 * (very large monsters have too much inertia, even floaters and flyers)
@@ -834,17 +836,25 @@ mhurtle(mon, dx, dy, range)
 	    return;
 
     /* Make sure dx and dy are [-1,0,1] */
-    dx = sgn(dx);
-    dy = sgn(dy);
+    if (range != -1) {
+    	dx = sgn(dx);
+    	dy = sgn(dy);
+    }
     if(!range || (!dx && !dy)) return; /* paranoia */
 
-	/* Send the monster along the path */
-	mc.x = mon->mx;
-	mc.y = mon->my;
-	cc.x = mon->mx + (dx * range);
-	cc.y = mon->my + (dy * range);
-	(void) walk_path(&mc, &cc, mhurtle_step, (genericptr_t)mon);
-	return;
+    /* Send the monster along the path */
+    mc.x = mon->mx;
+    mc.y = mon->my;
+
+    if (range == -1) {
+	cc.x = dx;
+	cc.y = dy;
+    } else {
+    	cc.x = mon->mx + (dx * range);
+    	cc.y = mon->my + (dy * range);
+    }
+    (void) walk_path(&mc, &cc, mhurtle_step, (genericptr_t)mon);
+    return;
 }
 
 STATIC_OVL void

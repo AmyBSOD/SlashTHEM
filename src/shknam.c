@@ -577,7 +577,7 @@ struct mkroom	*sroom;
 	  otmp = mksobj(AMULET_OF_LIFE_SAVING, FALSE, FALSE);
 	  mpickobj(shk, otmp);
 /* wear armor and amulet */
-	  m_dowear(shk, TRUE);
+	  m_dowear(shk, TRUE, FALSE);
 	  otmp = mksobj(SKELETON_KEY, FALSE, FALSE);
 	  mpickobj(shk, otmp);
 	}

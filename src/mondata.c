@@ -29,6 +29,15 @@ int flag;
 #endif /* OVLB */
 #ifdef OVL0
 
+boolean
+is_levitating(mon)
+struct monst *mon;
+{
+    if (!mon)
+	return FALSE;
+    return is_floater(mon->data) || (mon->mintrinsics & MR2_LEVITATE);
+}
+
 struct attack *
 attacktype_fordmg(ptr, atyp, dtyp)
 struct permonst *ptr;

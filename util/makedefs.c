@@ -448,9 +448,23 @@ do_rumors()
  * break save file compatibility with 3.4.0 files, so we will
  * explicitly mask it out during version checks.
  * This should go away in the next version update.
+ *
+ * MONSTER_TIMERS: Active monster timers make savefiles incompatible with
+ * vanilla NetHack (which will panic if it finds a monster timer). So we add
+ * monster timers as VERSION_FEATURES to prevent unpatched vanilla from dying
+ * horribly; at the same time, we don't mind seeing savefiles from a version
+ * without monster timers, so we put that in IGNORED_FEATURES.
  */
 #define IGNORED_FEATURES	( 0L \
 				| (1L << 23)	/* TIMED_DELAY */ \
+				| (1L << 24)	/* MONSTER_TIMERS */ \
+				)
+
+/*
+ * Features that should be suppressed when saving bones files.
+ */
+#define BONES_MASKED_FEATURES   ( 0L \
+				| (1L << 24)	/* MONSTER_TIMERS */ \
 				)
 
 static void
@@ -534,6 +548,9 @@ make_version()
 #endif
 #ifdef SCORE_ON_BOTL
 			| (1L << 21)
+#endif
+#ifdef MONSTER_TIMERS
+			| (1L << 24)
 #endif
 		/* data format [COMPRESS excluded] (27..31) */
 #ifdef ZEROCOMP
@@ -646,6 +663,10 @@ do_date()
 #ifdef IGNORED_FEATURES
 	Fprintf(ofp,"#define IGNORED_FEATURES 0x%08lx%s\n",
 		(unsigned long) IGNORED_FEATURES, ul_sfx);
+#endif
+#ifdef BONES_MASKED_FEATURES
+	Fprintf(ofp,"#define BONES_MASKED_FEATURES 0x%08lx%s\n",
+		(unsigned long) BONES_MASKED_FEATURES, ul_sfx);
 #endif
 	Fprintf(ofp,"#define VERSION_SANITY1 0x%08lx%s\n",
 		version.entity_count, ul_sfx);
@@ -908,6 +929,9 @@ static const char *build_opts[] = {
 #endif
 #ifdef WALLIFIED_MAZE
 		"walled mazes",
+#endif
+#ifdef MONSTER_TIMERS
+		"timers on monsters",
 #endif
 #ifdef YEOMAN
 		"yeomen",

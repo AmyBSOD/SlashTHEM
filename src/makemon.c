@@ -2432,7 +2432,7 @@ register int	mmflags;
 #ifdef EASY_MODE
 		m_initxtraitem(mtmp);
 #endif /* EASY_MODE */
-	    m_dowear(mtmp, TRUE);
+	    m_dowear(mtmp, TRUE, FALSE);
 	} else {
 	    if (mtmp->minvent) discard_minvent(mtmp);
 	    mtmp->minvent = (struct obj *)0;    /* caller expects this */

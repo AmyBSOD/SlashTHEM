@@ -1511,7 +1511,9 @@ boolean your_fault;
   		break;
 	case POT_INVISIBILITY:
 		angermon = FALSE;
-		mon_set_minvis(mon);
+		mon_set_minvis(mon, obj->blessed);
+		if (!obj->blessed)
+		    begin_invis(mon, 30 + rnd(obj->cursed? 10 : 30));
 		break;
 	case POT_SLEEPING:
 		/* wakeup() doesn't rouse victims of temporary sleep */
@@ -1531,7 +1533,9 @@ boolean your_fault;
 		break;
 	case POT_SPEED:
 		angermon = FALSE;
-		mon_adjust_speed(mon, 1, obj);
+		mon_adjust_speed(mon, 4, obj);
+		begin_speed(mon, 
+			(obj->blessed? 12 : obj->cursed? 2 : 6) + rnd(5));
 		break;
 	case POT_BLINDNESS:
 		if(haseyes(mon->data)) {

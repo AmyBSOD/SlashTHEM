@@ -839,7 +839,7 @@ int *fail_reason;
 	    obj_extract_self(item);
 	    (void) add_to_minv(mon, item);
 	}
-	m_dowear(mon, TRUE);
+	m_dowear(mon, TRUE, FALSE);
 	delobj(statue);
 
 	/* mimic statue becomes seen mimic; other hiders won't be hidden */
@@ -2159,6 +2159,42 @@ register int n;
 }
 
 
+STATIC_OVL
+void
+m_dosinkfall(mon)
+struct monst *mon;
+{
+    boolean vis = canseemon(mon);
+    struct obj *worn;
+
+    if (is_floater(mon->data)) {
+	if (vis) pline("%s wobbles unsteadily for a moment.", Monnam(mon));
+	return ;
+    }
+
+    if (vis) pline("%s crashes to the floor!", Monnam(mon));
+    /* Be kinder to monsters than to the player */
+    mon->mhp -= rn1(24, 2);
+
+    if (mon->mhp < 0) {
+	monkilled(mon, "", AD_PHYS);
+	if (mon->mhp <= 0) {
+	    newsym(mon->mx, mon->my);
+	    return ;
+	}
+    }
+
+    /* Force levitation off before call m_remove_armor, to prevent redundant
+     * <mon> floats down to floor messages */
+    mon->mintrinsics &= ~MR2_LEVITATE;
+    /* Here's the fun bit: we need to force off all levitation items */
+    while (worn = get_equiv_armor(mon, LEVITATION))
+	m_remove_armor(mon, worn, TRUE);
+
+    /* Stop levitation, assuming it's still on */
+    stop_timer(TIMEOUT_LEV, (genericptr_t) mon);
+}
+
 int
 mintrap(mtmp)
 register struct monst *mtmp;
@@ -2170,6 +2206,11 @@ register struct monst *mtmp;
 
 	if (!trap) {
 	    mtmp->mtrapped = 0;	/* perhaps teleported? */
+#ifdef SINKS	    
+	    /* Check whether we have a levitating monster over a sink */
+	    if(IS_SINK(levl[mtmp->mx][mtmp->my].typ) && is_levitating(mtmp))
+		m_dosinkfall(mtmp);
+#endif
 	} else if (mtmp->mtrapped) {	/* is currently in the trap */
 	    if (!trap->tseen &&
 		cansee(mtmp->mx, mtmp->my) && canseemon(mtmp) &&

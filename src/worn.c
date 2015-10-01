@@ -5,7 +5,8 @@
 #include "hack.h"
 
 STATIC_DCL void FDECL(m_lose_armor, (struct monst *,struct obj *));
-STATIC_DCL void FDECL(m_dowear_type, (struct monst *,long, BOOLEAN_P, BOOLEAN_P));
+STATIC_DCL void FDECL(m_dowear_type, (struct monst *,long, BOOLEAN_P, 
+	    				BOOLEAN_P, BOOLEAN_P));
 STATIC_DCL int FDECL(extra_pref, (struct monst *, struct obj *));
 
 const struct worn {
@@ -146,10 +147,11 @@ register struct obj *obj;
 }
 
 void
-mon_set_minvis(mon)
+mon_set_minvis(mon, perminvis)
 struct monst *mon;
+boolean perminvis;
 {
-	mon->perminvis = 1;
+	if (perminvis) mon->perminvis = 1;
 	if (!mon->invis_blkd) {
 	    mon->minvis = 1;
 	    newsym(mon->mx, mon->my);		/* make it disappear */
@@ -176,6 +178,7 @@ struct obj *obj;	/* item to make known if effect can be seen */
 	if (mon->permspeed == MSLOW) mon->permspeed = 0;
 	else mon->permspeed = MFAST;
 	break;
+     case 4:			/* Set speed to fast, but not permspeed */
      case  0:			/* just check for worn speed boots */
 	break;
      case -1:
@@ -196,7 +199,7 @@ struct obj *obj;	/* item to make known if effect can be seen */
     for (otmp = mon->minvent; otmp; otmp = otmp->nobj)
 	if (otmp->owornmask && objects[otmp->otyp].oc_oprop == FAST)
 	    break;
-    if (otmp)		/* speed boots */
+    if (otmp || adjust == 4)		/* speed boots or spell */
 	mon->mspeed = MFAST;
     else
 	mon->mspeed = mon->permspeed;
@@ -221,6 +224,20 @@ struct obj *obj;	/* item to make known if effect can be seen */
 		objects[obj->otyp].oc_class != SPBOOK_CLASS)
 	    makeknown(obj->otyp);
     }
+}
+
+struct obj *
+get_equiv_armor(mon, which)
+struct monst *mon;
+int which;
+{
+    struct obj *otmp;
+
+    for (otmp = mon->minvent; otmp; otmp = otmp->nobj)
+	if (otmp->owornmask &&
+			(int) objects[otmp->otyp].oc_oprop == which)
+	    return otmp;
+    return (struct obj *) NULL;
 }
 
 /* armor put on or taken off; might be magical variety */
@@ -260,8 +277,16 @@ boolean on, silently;
 	 case STEALTH:
 	 case TELEPAT:
 	    break;
-	/* properties which should have an effect but aren't implemented */
 	 case LEVITATION:
+	    if (!is_levitating(mon) && !is_flyer(mon->data)) {
+	    	mon->mintrinsics |= MR2_LEVITATE;
+		if (canseemon(mon) && !silently) {
+		    pline("%s begins to float in the air!", Monnam(mon));
+		    makeknown(obj->otyp);
+		}
+	    }
+	    break;
+	/* properties which should have an effect but aren't implemented */
 	 case WWALKING:
 	    break;
 	/* properties which maybe should have an effect but don't */
@@ -294,6 +319,21 @@ boolean on, silently;
 	    in_mklev = save_in_mklev;
 	    break;
 	  }
+	 case LEVITATION:
+	    if (!get_equiv_armor(mon, which)) {
+		if (mon->mintrinsics & MR2_LEVITATE) {
+		    mon->mintrinsics &= ~MR2_LEVITATE;
+		    if (!is_flyer(mon->data) && !is_floater(mon->data) 
+				    && canseemon(mon)) {
+			if (!silently) {
+			    pline("%s floats down to the %s.", Monnam(mon),
+					surface(mon->mx, mon->my));
+			    makeknown(obj->otyp);
+			}
+		    }
+		}
+	    }
+	    break;
 	 case DRAIN_RES:
 	    mask = MR_DRAIN;
 	    goto maybe_loose;
@@ -312,11 +352,7 @@ boolean on, silently;
 	       we don't currently check for anything conferred via simply
 	       carrying an object. */
 	    if (!(mon->data->mresists & mask)) {
-		for (otmp = mon->minvent; otmp; otmp = otmp->nobj)
-		    if (otmp->owornmask &&
-			    (int) objects[otmp->otyp].oc_oprop == which)
-			break;
-		if (!otmp)
+		if (!get_equiv_armor(mon, which))
 		    mon->mintrinsics &= ~mask;
 	    }
 	    break;
@@ -370,7 +406,8 @@ register struct monst *mon;
  * the monster can put everything on at once; otherwise, wearing takes time.
  * This doesn't affect monster searching for objects--a monster may very well
  * search for objects it would not want to wear, because we don't want to
- * check which_armor() each round.
+ * check which_armor() each round. If forceall is true, the monster won't let
+ * being frozen prevent it from wearing armor.
  *
  * We'll let monsters put on shirts and/or suits under worn cloaks, but
  * not shirts under worn suits.  This is somewhat arbitrary, but it's
@@ -380,9 +417,9 @@ register struct monst *mon;
  * already worn body armor is too obviously buggy...
  */
 void
-m_dowear(mon, creation)
+m_dowear(mon, creation, forceall)
 register struct monst *mon;
-boolean creation;
+boolean creation, forceall;
 {
 #define RACE_EXCEPTION TRUE
 	/* Note the restrictions here are the same as in dowear in do_wear.c
@@ -397,41 +434,45 @@ boolean creation;
 	    (mon->data->mlet != S_MUMMY && mon->data != &mons[PM_SKELETON])))
 		return;
 
-	m_dowear_type(mon, W_AMUL, creation, FALSE);
+	m_dowear_type(mon, W_AMUL, creation, FALSE, forceall);
 #ifdef TOURIST
 	/* can't put on shirt if already wearing suit */
 	if (!cantweararm(mon->data) || (mon->misc_worn_check & W_ARM))
-	    m_dowear_type(mon, W_ARMU, creation, FALSE);
+	    m_dowear_type(mon, W_ARMU, creation, FALSE, forceall);
 #endif
 	/* treating small as a special case allows
 	   hobbits, gnomes, and kobolds to wear cloaks */
 	if (!cantweararm(mon->data) || mon->data->msize == MZ_SMALL)
-	    m_dowear_type(mon, W_ARMC, creation, FALSE);
-	m_dowear_type(mon, W_ARMH, creation, FALSE);
+	    m_dowear_type(mon, W_ARMC, creation, FALSE, forceall);
+	m_dowear_type(mon, W_ARMH, creation, FALSE, forceall);
 	if (!MON_WEP(mon) || !bimanual(MON_WEP(mon)))
-	    m_dowear_type(mon, W_ARMS, creation, FALSE);
-	m_dowear_type(mon, W_ARMG, creation, FALSE);
+	    m_dowear_type(mon, W_ARMS, creation, FALSE, forceall);
+	m_dowear_type(mon, W_ARMG, creation, FALSE, forceall);
 	if (!slithy(mon->data) && mon->data->mlet != S_CENTAUR)
-	    m_dowear_type(mon, W_ARMF, creation, FALSE);
+	    m_dowear_type(mon, W_ARMF, creation, FALSE, forceall);
 	if (!cantweararm(mon->data))
-	    m_dowear_type(mon, W_ARM, creation, FALSE);
+	    m_dowear_type(mon, W_ARM, creation, FALSE, forceall);
 	else
-	    m_dowear_type(mon, W_ARM, creation, RACE_EXCEPTION);
+	    m_dowear_type(mon, W_ARM, creation, RACE_EXCEPTION, forceall);
 }
 
 STATIC_OVL void
-m_dowear_type(mon, flag, creation, racialexception)
+m_dowear_type(mon, flag, creation, racialexception, forceall)
 struct monst *mon;
 long flag;
 boolean creation;
 boolean racialexception;
+boolean forceall;
 {
 	struct obj *old, *best, *obj;
 	int m_delay = 0;
 	int unseen = !canseemon(mon);
 	char nambuf[BUFSZ];
 
-	if (mon->mfrozen) return; /* probably putting previous item on */
+	/* D: If monster took off lev. boots to pick up armour, we want it to
+	 *    wear both armor and boots, so ignore mfrozen if the caller thinks
+	 *    this is a special case. */
+	if (mon->mfrozen && !forceall) return;
 
 	/* Get a copy of monster's name before altering its visibility */
 	Strcpy(nambuf, See_invisible ? Monnam(mon) : mon_nam(mon));
@@ -503,6 +544,12 @@ boolean racialexception;
 outer_break:
 	if (!best || best == old) return;
 
+#ifdef SINKS
+	/* Don't wear levitating stuff when standing on a sink */
+	if (objects[best->otyp].oc_oprop == LEVITATION &&
+			IS_SINK(levl[mon->mx][mon->my].typ)) return ;
+#endif
+
 	/* if wearing a cloak, account for the time spent removing
 	   and re-wearing it when putting on a suit or shirt */
 	if ((flag == W_ARM
@@ -529,8 +576,11 @@ outer_break:
 		pline("%s%s puts on %s.", Monnam(mon),
 		      buf, distant_name(best,doname));
 	    } /* can see it */
+
+	    /* D: Delays are cumulative, assuming the monster's trying to
+	     *    wear all its armour in one go */
 	    m_delay += objects[best->otyp].oc_delay;
-	    mon->mfrozen = m_delay;
+	    mon->mfrozen += m_delay;
 	    if (mon->mfrozen) mon->mcanmove = 0;
 	}
 	if (old)
@@ -547,6 +597,86 @@ outer_break:
 	}
 }
 #undef RACE_EXCEPTION
+
+/* D: Removes a worn item from a monster, usually a piece of armor */
+void
+m_remove_armor(mon, armor, force)
+struct monst *mon;
+struct obj *armor;
+boolean force;		/* Is the armor removal forcible? */
+{
+    long wornmask = armor->owornmask;
+
+    if ((armor->cursed && !force) || !wornmask) return ;
+
+    /* Spend some turns getting this off */
+    if (mon->mcanmove) {
+	mon->mfrozen = 1;
+	mon->mcanmove = 0;
+    }
+
+    /* This code borrowed from the nymph/foocubus steal section of mdamagem() */
+
+    /* Flag armor as no longer in use */
+    mon->misc_worn_check &= ~wornmask;
+    /* Is the monster wielding this? Unlikely to happen for armor, but this
+     * needn't be armor */
+    if (wornmask & W_WEP) setmnotwielded(mon, armor);
+    armor->owornmask = 0L;
+
+    /* If we actually took off some armor, say so */
+    if ((wornmask & W_ARMOR) && !force && canseemon(mon))
+	pline("%s removes %s.", Monnam(mon), distant_name(armor, doname));
+
+    /* Update monster intrinsics; this may produce messages, which should only
+     * appear after the <Monster> removes <foo>. message */
+    update_mon_intrinsics(mon, armor, FALSE, FALSE);
+}
+
+/*  Performs an action appropriate for the monster to stop levitating: returns
+ * -1 if the monster couldn't stop levitating or the number of turns the action
+ * of stopping levitation will take. 
+ *  The caller is responsible for checking whether this monster is actually
+ * levitating or not before calling this and to call minliquid() if that's 
+ * needed.
+ */
+int
+m_stop_levitating(mon)
+struct monst *mon;
+{
+    struct obj *levarm = NULL;
+
+    /* If we can't move, we can't move */
+    if (mon->mfrozen) {
+	impossible("Paralyzed monster wants to stop levitating?");
+	return -1;
+    }
+
+    /* Check first for worn levitating items (only boots for monsters atm) */
+    levarm = get_equiv_armor(mon, LEVITATION);
+    if (levarm) {
+	/* Can we take this off? */
+	if (levarm->cursed) return -1;
+	m_remove_armor(mon, levarm, FALSE);
+	return mon->mfrozen;
+    }
+
+    /* No levitating gear equipped, so this is either a potion or spell effect;
+     * potion effects aren't implemented yet, so this must be a spell effect,
+     * but take no chances */
+    if (getmspell(mon, SPE_LEVITATION, 1)) {
+	/* Assume that a spellcaster that knows how to levitate knows how to
+	 * stop levitating */
+	if (stop_timer(TIMEOUT_LEV, (genericptr_t) mon)) {
+	    mon->mintrinsics &= ~MR2_LEVITATE;
+	    if (canseemon(mon)) pline("%s stops levitating.", Monnam(mon));
+	    return 0;
+	}
+    }
+
+    /* Some power beyond our control has us levitating */
+    return -1;
+}
 
 struct obj *
 which_armor(mon, flag)

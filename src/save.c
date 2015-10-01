@@ -270,7 +270,7 @@ dosave0()
 	}
 #endif /* MFLOPPY */
 
-	store_version(fd);
+	store_version(fd, FALSE);
 #ifdef STORE_PLNAME_IN_FILE
 	bwrite(fd, (genericptr_t) plname, PL_NSIZ);
 #endif
@@ -470,7 +470,7 @@ savestateinlock()
 
 		    (void) write(fd, (genericptr_t) &currlev, sizeof(currlev));
 		    save_savefile_name(fd);
-		    store_version(fd);
+		    store_version(fd, FALSE);
 #ifdef STORE_PLNAME_IN_FILE
 		    bwrite(fd, (genericptr_t) plname, PL_NSIZ);
 #endif

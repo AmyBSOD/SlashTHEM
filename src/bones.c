@@ -359,7 +359,7 @@ struct obj *corpse;
 			an(mons[u.ugrave_arise].mname));
 		display_nhwindow(WIN_MESSAGE, FALSE);
 		drop_upon_death(mtmp, (struct obj *)0);
-		m_dowear(mtmp, TRUE);
+		m_dowear(mtmp, TRUE, FALSE);
 	}
 	if (mtmp) {
 		mtmp->m_lev = (u.ulevel ? u.ulevel : 1);
@@ -438,11 +438,15 @@ struct obj *corpse;
 	}
 #endif /* MFLOPPY */
 
-	store_version(fd);
+	/* Kill monster timers to stay compatible with unpatched NetHack */
+	mon_stop_timers((struct monst *) 0);
+
+	store_version(fd, TRUE);
 	bwrite(fd, (genericptr_t) &c, sizeof c);
 	bwrite(fd, (genericptr_t) bonesid, (unsigned) c);	/* DD.nnn */
 	savefruitchn(fd, WRITE_SAVE | FREE_SAVE);
 	update_mlstmv();	/* update monsters for eventual restoration */
+
 	savelev(fd, ledger_no(&u.uz), WRITE_SAVE | FREE_SAVE);
 	bclose(fd);
 	commit_bonesfile(&u.uz);

@@ -243,7 +243,7 @@ doit:
 			}
 			pline("%s %s, %s evading your %skick.", Monnam(mon),
 				(can_teleport(mon->data) ? "teleports" :
-				 is_floater(mon->data) ? "floats" :
+				 is_levitating(mon) ? "floats" :
 				 is_flyer(mon->data) ? "swoops" :
 				 (nolimbs(mon->data) || slithy(mon->data)) ?
 					"slides" : "jumps"),

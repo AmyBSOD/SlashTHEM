@@ -30,20 +30,23 @@ typedef void FDECL((*timeout_proc), (genericptr_t, long));
 #define HATCH_EGG	5
 #define FIG_TRANSFORM	6
 #define UNPOLY_MON      7
+#define TIMEOUT_LEV	8
+#define TIMEOUT_INVIS   9
+#define TIMEOUT_SPEED	10
 # ifdef FIREARMS
-#define BOMB_BLOW	8
+#define BOMB_BLOW	11
 #  ifdef UNPOLYPILE
-#define UNPOLY_OBJ      9
-#define NUM_TIME_FUNCS  10
+#define UNPOLY_OBJ      12
+#define NUM_TIME_FUNCS  13
 #  else
-#define NUM_TIME_FUNCS  9
+#define NUM_TIME_FUNCS  12
 #  endif
 # else /* FIREARMS */
 #  ifdef UNPOLYPILE
-#define UNPOLY_OBJ      8
-#define NUM_TIME_FUNCS  9
+#define UNPOLY_OBJ      11
+#define NUM_TIME_FUNCS  12
 #  else
-#define NUM_TIME_FUNCS  8
+#define NUM_TIME_FUNCS  11
 #  endif
 # endif /* FIREARMS */
 
