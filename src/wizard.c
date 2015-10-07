@@ -454,12 +454,11 @@ nasty(mcast)
 		if (mcast &&
 		    !enexto(&bypos, mcast->mux, mcast->muy, &mons[makeindex]))
 		    continue;
-		/* if ((mtmp = makemon(&mons[makeindex],
+		if ((mtmp = makemon(&mons[makeindex],
 				    bypos.x, bypos.y, NO_MM_FLAGS)) != 0) {
 		    mtmp->msleeping = mtmp->mpeaceful = mtmp->mtame = 0;
 		    set_malign(mtmp);
-		} else GENOD? */
-/* changing summon nasties so it can summon everything --Amy */
+		} else /* GENOD? */
 		    mtmp = makemon((struct permonst *)0,
 					bypos.x, bypos.y, NO_MM_FLAGS);
 		if(mtmp && (mtmp->data->maligntyp == 0 ||
@@ -558,64 +557,32 @@ wizdead()
 
 const char * const random_insult[] = {
 	"antic",
-	"ass-fucker",
-	"asshole",
-	"assmunch",
-	"bitch",
 	"blackguard",
 	"caitiff",
 	"chucklehead",
 	"coistrel",
-	"coward",
 	"craven",
-	"crazy person",
 	"cretin",
-	"crone",
-	"crybaby",
-	"cunt",
 	"cur",
 	"dastard",
 	"demon fodder",
 	"dimwit",
-	"dirtbag",
 	"dolt",
-	"emo",
-	"faggot",
-	"failure",
 	"fool",
 	"footpad",
-	"fucktard",
-	"gay fag",
-	"idiot",
 	"imbecile",
 	"knave",
-	"lamer",
-	"loser",
-	"maggot",
 	"maledict",
 	"miscreant",
-	"mother-fucker",
 	"niddering",
-	"piece of shit",
-	"pig",
 	"poltroon",
-	"prep",
-	"pudding farmer",
 	"rattlepate",
 	"reprobate",
-	"retard",
 	"scapegrace",
-	"shitbag",
-	"startscummer",
-	"stinker",
-	"useless creature",
 	"varlet",
 	"villein",	/* (sic.) */
-	"weakling",
-	"wimp",
 	"wittol",
 	"worm",
-	"worthless human being",
 	"wretch",
 };
 
