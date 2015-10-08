@@ -695,8 +695,7 @@ static struct trobj UngMoldWand[] = {
 	{ 0, 0, 0, 0, 0 }
 };
 static struct trobj AutomatonItem[] = {
-	{ POT_OIL, 0, POTION_CLASS, 2, 0 },
-	{ SKELETON_KEY, 0, TOOL_CLASS, 1, 0 },
+	{ POT_OIL, 0, POTION_CLASS, 3, 0 },
 	{ 0, 0, 0, 0, 0 }
 };
 static struct trobj TrollItemA[] = {
@@ -1002,6 +1001,7 @@ static struct inv_sub { short race_pm, item_otyp, subs_otyp; } inv_subs[] = {
     { PM_VAMPIRE,	POT_FRUIT_JUICE,	POT_BLOOD	      },
     { PM_VAMPIRE,	FOOD_RATION,		POT_VAMPIRE_BLOOD     },
     { PM_GASTLY,	FOOD_RATION,		CORPSE     },
+    { PM_CLOCKWORK_AUTOMATON,FOOD_RATION,	POT_OIL    },
     { NON_PM,		STRANGE_OBJECT,		STRANGE_OBJECT	      }
 };
 
