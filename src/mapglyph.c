@@ -246,8 +246,6 @@ unsigned *ospecial;
 				color = CLR_BRIGHT_CYAN;
 			} else if(*in_rooms(x,y,ARMORY)) {
 				color = CLR_CYAN;
-			} else if(*in_rooms(x,y,TENSHALL)) {
-				color = rn2(15);
 			} else if(*in_rooms(x,y,POOLROOM)) {
 				color = CLR_BRIGHT_BLUE;
 			}
@@ -287,7 +285,7 @@ unsigned *ospecial;
 				color = rn2(15);
 			}
 		}
-		if(iflags.use_color && 
+		if(iflags.use_color && iflags.dungeon_colors &&
 		    (offset == S_upstair || offset == S_dnstair) &&
 		    (x == sstairs.sx && y == sstairs.sy)) {
 			color = CLR_YELLOW;
