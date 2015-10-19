@@ -792,7 +792,7 @@ mkswamp()	/* Michiel Huisjes & Fred de Wilde */
 		for(sx = sroom->lx; sx <= sroom->hx; sx++)
 		for(sy = sroom->ly; sy <= sroom->hy; sy++)
 		if(!OBJ_AT(sx, sy) &&
-		   !MON_AT(sx, sy) && !t_at(sx,sy) /*&& !nexttodoor(sx,sy)*/) {
+		   !MON_AT(sx, sy) && !t_at(sx,sy) && !nexttodoor(sx,sy)) {
 		    if((sx+sy)%2) {
 			levl[sx][sy].typ = POOL;
 			if(!eelct || !rn2(4)) {
@@ -1096,44 +1096,33 @@ void
 mktraproom()
 {
     struct mkroom *sroom;
-
-	register int sx,sy = 0;
-	int rtrap;
-	int randomnes = 0;
+    struct rm *lev;
+    int area, ttyp, ntraps;
+    int idx = (level_difficulty() + ((long)u.ubirthday)) % 9;
 
     if(!(sroom = pick_room(TRUE))) return;
 
     sroom->rtype = TRAPROOM;
-	rtrap = rnd(TRAPNUM-1);
 
-	if (rtrap == HOLE) rtrap = PIT;
-	if (rtrap == MAGIC_PORTAL) rtrap = PIT;
-	if (rtrap == TRAPDOOR && !Can_dig_down(&u.uz)) rtrap = PIT;
-	if (rtrap == LEVEL_TELEP && level.flags.noteleport) rtrap = SQKY_BOARD;
-	if (rtrap == TELEP_TRAP && level.flags.noteleport) rtrap = SQKY_BOARD;
-	if (rtrap == ROLLING_BOULDER_TRAP) rtrap = ROCKTRAP;
-	if (rtrap == NO_TRAP) rtrap = ARROW_TRAP;
+    if (!rn2(10)) idx = rn2(10); /* occasionally give anything if called twice on same level */
 
-	if (!rn2(4)) randomnes = 1;
+    area = ((sroom->hx - sroom->lx + 1) * (sroom->hy - sroom->ly + 1));
+    ntraps = rn2(area/3) + (area/4);
 
-		for(sx = sroom->lx; sx <= sroom->hx; sx++)
-		for(sy = sroom->ly; sy <= sroom->hy; sy++)
-		if(!OBJ_AT(sx, sy) &&
-		   !MON_AT(sx, sy) && !t_at(sx,sy) /*&& !nexttodoor(sx,sy)*/) {
-		    if(rn2(5)) 
-				(void) maketrap(sx, sy, rtrap);
-			if (randomnes == 1) { rtrap = rnd(TRAPNUM-1);
-
-			if (rtrap == HOLE) rtrap = PIT;
-			if (rtrap == MAGIC_PORTAL) rtrap = PIT;
-			if (rtrap == TRAPDOOR && !Can_dig_down(&u.uz)) rtrap = PIT;
-			if (rtrap == LEVEL_TELEP && level.flags.noteleport) rtrap = SQKY_BOARD;
-			if (rtrap == TELEP_TRAP && level.flags.noteleport) rtrap = SQKY_BOARD;
-			if (rtrap == ROLLING_BOULDER_TRAP) rtrap = ROCKTRAP;
-			if (rtrap == NO_TRAP) rtrap = ARROW_TRAP;
-
-			}
-		}
+    while (ntraps-- > 0) {
+	switch (idx) {
+	default: ttyp = LANDMINE; break;
+	case 0:  ttyp = ROLLING_BOULDER_TRAP; ntraps--; break;
+	case 1:  ttyp = rn2(2) ? PIT : SPIKED_PIT; break;
+	case 2:  ttyp = WEB; break;
+	case 3:  ttyp = rn2(3) ? ROCKTRAP : COLLAPSE_TRAP; break;
+	case 4:  ttyp = FIRE_TRAP; break;
+	case 5:  ttyp = rn2(5) ? TRAPDOOR : HOLE; break;
+	case 6:  ttyp = STATUE_TRAP; break;
+	case 7:  ttyp = rn2(2) ? DART_TRAP : ARROW_TRAP; break;
+	}
+	mktrap(ttyp, 0, sroom, NULL);
+    }
 
 }
 
@@ -1142,25 +1131,23 @@ mkpoolroom()
 {
     struct mkroom *sroom;
     schar typ;
-	register int sx,sy = 0;
+    register int sx,sy = 0;
 
     if (!(sroom = pick_room(TRUE))) return;
 
-	if(sroom->rtype != OROOM || has_upstairs(sroom) || has_dnstairs(sroom)) return;
+    if(sroom->rtype != OROOM || has_upstairs(sroom) || has_dnstairs(sroom)) return;
 
     sroom->rtype = POOLROOM;
-    typ = !rn2(3) ? POOL : !rn2(4) ? ICE : !rn2(5) ? CLOUD : !rn2(8) ? AIR : !rn2(10) ? STONE : !rn2(10) ? TREE : !rn2(15) ? IRONBARS : !rn2(120) ? FOUNTAIN : !rn2(250) ? THRONE : !rn2(60) ? SINK : !rn2(40) ? TOILET : !rn2(20) ? GRAVE : !rn2(500) ? ALTAR : LAVAPOOL;
 
-		for(sx = sroom->lx; sx <= sroom->hx; sx++)
-		for(sy = sroom->ly; sy <= sroom->hy; sy++)
-		if(!OBJ_AT(sx, sy) &&
-		   !MON_AT(sx, sy) && !t_at(sx,sy) /*&& !nexttodoor(sx,sy)*/) {
-		    if(rn2(5)) 
-			levl[sx][sy].typ = typ;
-		}
+    typ = !rn2(5) ? POOL : LAVAPOOL;
+
+    for(sx = sroom->lx; sx <= sroom->hx; sx++)
+    for(sy = sroom->ly; sy <= sroom->hy; sy++)
+	if(!OBJ_AT(sx, sy) &&
+	   !MON_AT(sx, sy) && !t_at(sx,sy) && !nexttodoor(sx,sy))
+		levl[sx][sy].typ = typ;
 
 	level.flags.has_poolroom = 1;
-
 }
 
 void
