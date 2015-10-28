@@ -21,6 +21,7 @@ STATIC_DCL boolean FDECL(isbig, (struct mkroom *));
 STATIC_DCL struct mkroom * FDECL(pick_room,(BOOLEAN_P));
 STATIC_DCL void NDECL(mkshop), FDECL(mkzoo,(int)), NDECL(mkswamp);
 STATIC_DCL void NDECL(mktemple);
+STATIC_DCL void FDECL(mkgarden, (struct mkroom *));
 STATIC_DCL coord * FDECL(shrine_pos, (int));
 STATIC_DCL struct permonst * NDECL(morguemon);
 STATIC_DCL struct permonst * NDECL(douglas_adams_mon);
@@ -28,7 +29,7 @@ STATIC_DCL struct permonst * NDECL(squadmon);
 STATIC_DCL struct permonst * NDECL(fungus);
 STATIC_DCL void NDECL(mktraproom);
 STATIC_DCL void NDECL(mkpoolroom);
-STATIC_DCL void NDECL(mkstatueroom);
+//STATIC_DCL void NDECL(mkstatueroom);
 STATIC_DCL void FDECL(save_room, (int,struct mkroom *));
 STATIC_DCL void FDECL(rest_room, (int,struct mkroom *));
 #endif /* OVLB */
@@ -67,6 +68,7 @@ int	roomtype;
 	case DRAGONLAIR: mkzoo(DRAGONLAIR); break;
 	case GIANTCOURT: mkzoo(GIANTCOURT); break;
 	case SWAMP:	mkswamp(); break;
+	case GARDEN:	mkgarden((struct mkroom *)0); break;
 	case TEMPLE:	mktemple(); break;
 	case LEPREHALL:	mkzoo(LEPREHALL); break;
 	case COCKNEST:	mkzoo(COCKNEST); break;
@@ -76,19 +78,10 @@ int	roomtype;
 	case FUNGUSFARM: mkzoo(FUNGUSFARM); break;
 	case CLINIC: mkzoo(CLINIC); break;
 	case TERRORHALL: mkzoo(TERRORHALL); break;
-	case ELEMHALL: mkzoo(ELEMHALL); break;
-	case ANGELHALL: mkzoo(ANGELHALL); break;
-	case MIMICHALL: mkzoo(MIMICHALL); break;
-	case NYMPHHALL: mkzoo(NYMPHHALL); break;
-	case TROLLHALL: mkzoo(TROLLHALL); break;
-	case HUMANHALL: mkzoo(HUMANHALL); break;
-	case GOLEMHALL: mkzoo(GOLEMHALL); break;
-	case SPIDERHALL: mkzoo(SPIDERHALL); break;
 	case COINHALL: mkzoo(COINHALL); break;
-	case GRUEROOM: mkzoo(GRUEROOM); break;
+	/*case GRUEROOM: mkzoo(GRUEROOM); break;*/
 	case TRAPROOM:  mktraproom(); break;
 	case POOLROOM:  mkpoolroom(); break;
-	case STATUEROOM:  mkstatueroom(); break;
 	case ARMORY: mkzoo(ARMORY); break;
 	default:	impossible("Tried to make a room of type %d.", roomtype);
     }
@@ -157,6 +150,10 @@ mkshop()
 			}
 			if(*ep == '_'){
 				mktemple();
+				return;
+			}
+			if(*ep == 'n' || *ep == 'N'){
+				mkgarden((struct mkroom *)0);
 				return;
 			}
 			if(*ep == '}'){
@@ -297,6 +294,10 @@ struct mkroom *sroom;
 
 	sh = sroom->fdoor;
 	switch(type) {
+	    case GARDEN:
+		mkgarden(sroom);
+		/* mkgarden() sets flags and we don't want other fillings */
+		return; 
 	    case COURT:
 	    case GIANTCOURT:
 		if(level.flags.is_maze_lev) {
@@ -333,16 +334,8 @@ struct mkroom *sroom;
 		goldlim = 500 * level_difficulty();
 		break;
 		case CLINIC:
-		case MIMICHALL:
-		case ELEMHALL:
 		case TERRORHALL:
-		case ANGELHALL:
-		case SPIDERHALL:
-		case HUMANHALL:
-		case GOLEMHALL:
-		case TROLLHALL:
-		case NYMPHHALL:
-		case GRUEROOM:
+		/*case GRUEROOM:*/
 		    break;
 	    case DRAGONLAIR:
 		goldlim = 1500 * level_difficulty();
@@ -369,24 +362,18 @@ struct mkroom *sroom;
 		/* don't place monster on explicitly placed throne */
 		if(type == COURT && IS_THRONE(levl[sx][sy].typ))
 		    continue;
-               /* armories don't contain as many monsters */
-		if ( (type != ARMORY && rn2(moreorless) ) || rn2(2)) mon = makemon(
-		    (type == COURT) ? (rn2(5) ? courtmon() : mkclass(S_ORC,0) ) :
+               /* armories (and clinics) don't contain as many monsters */
+		if ((type != ARMORY && type != CLINIC) || rn2(2)) mon = makemon(
+		    (type == COURT) ? courtmon() :
 		    (type == BARRACKS) ? squadmon() :
-		    (type == CLINIC) ? &mons[PM_NURSE] :
+		    (type == CLINIC) ?
+			(sx == tx && sy == ty ? &mons[PM_HEALER] :
+			 &mons[PM_NURSE]) :
 		    (type == TERRORHALL) ? mkclass(S_UMBER,0) :
-		    (type == ELEMHALL) ? mkclass(S_ELEMENTAL,0) :
-		    (type == ANGELHALL) ? mkclass(S_ANGEL,0) :
-		    (type == MIMICHALL) ? mkclass(S_MIMIC,0) :
-		    (type == NYMPHHALL) ? mkclass(S_NYMPH,0) :
-		    (type == TROLLHALL) ? mkclass(S_TROLL,0) :
-		    (type == SPIDERHALL) ? mkclass(S_SPIDER,0) :
-		    (type == HUMANHALL) ? mkclass(S_HUMAN,0) :
-		    (type == GOLEMHALL) ? mkclass(S_GOLEM,0) :
 		    (type == COINHALL) ? mkclass(S_BAD_COINS,0) :
-		    (type == GRUEROOM) ? mkclass(S_GRUE,0) :
+		    /*(type == GRUEROOM) ? mkclass(S_GRUE,0) :*/
 		    (type == MORGUE) ? morguemon() :
-		    (type == FUNGUSFARM) ? (rn2(2) ? fungus() : mkclass(S_FUNGUS,0)) :
+		    (type == FUNGUSFARM) ? fungus() :
 		    (type == BEEHIVE) ?
 			(sx == tx && sy == ty ? &mons[PM_QUEEN_BEE] :
 			 &mons[PM_KILLER_BEE]) :
@@ -396,19 +383,19 @@ struct mkroom *sroom;
 		    	(rn2(4) ? &mons[PM_COCKATRICE] :
 		    	 &mons[PM_CHICKATRICE]) :
                     (type == ARMORY) ? (rn2(10) ? mkclass(S_RUSTMONST,0) :
-			mkclass(S_PUDDING,0) ) :
+			&mons[PM_BROWN_PUDDING]) :
                     (type == ANTHOLE) ? 
 		        (sx == tx && sy == ty ? &mons[PM_QUEEN_ANT] :
 			 antholemon()) :
 		    (type == DRAGONLAIR) ? mkclass(S_DRAGON,0) :
 		    (type == LEMUREPIT)? 
-		    	(!rn2(20)? &mons[PM_HORNED_DEVIL] : !rn2(20) ? mkclass(S_DEMON,0) : rn2(2) ? mkclass(S_IMP,0) :
+		    	(!rn2(10)? &mons[PM_HORNED_DEVIL] : 
 			           &mons[PM_LEMURE]) :
 		    (type == MIGOHIVE)?
 		      (sx == tx && sy == ty? &mons[PM_MIGO_QUEEN] :
 	              (rn2(2)? &mons[PM_MIGO_DRONE] : &mons[PM_MIGO_WARRIOR])) :
 		    (type == BADFOODSHOP) ? mkclass(S_BAD_FOOD,0) :
-		    (type == REALZOO) ? (rn2(5) ? realzoomon() : mkclass(S_QUADRUPED,0) ) :
+		    (type == REALZOO) ? realzoomon() :
 		    (type == GIANTCOURT) ? mkclass(S_GIANT,0) :
 		    (struct permonst *) 0,
 		   sx, sy, NO_MM_FLAGS);
@@ -487,17 +474,31 @@ struct mkroom *sroom;
 			if (!rn2(5))
 			    make_grave(sx, sy, (char *)0);
 			break;
-		    case CLINIC:
+		    case CLINIC: /* 5lo: Rare rooms, lets give them a lot of healing objects. */
+			if(!rn2(5))
+			    (void) mksobj_at(POT_HEALING,sx,sy,TRUE,FALSE);
 			if(!rn2(10))
-			    (void) mksobj_at(ICE_BOX,sx,sy,TRUE,FALSE);
-			break;
-		    case GOLEMHALL:
+			    (void) mksobj_at(POT_EXTRA_HEALING,sx,sy,TRUE,FALSE);
 			if(!rn2(20))
-			    (void) mkobj_at(CHAIN_CLASS, sx, sy, FALSE);
-			break;
-		    case SPIDERHALL:
-			if(!rn2(3))
-			    (void) mksobj_at(EGG,sx,sy,TRUE,FALSE);
+			    (void) mksobj_at(POT_FULL_HEALING,sx,sy,TRUE,FALSE);
+			if(!rn2(30))
+			    (void) mksobj_at(POT_GAIN_HEALTH,sx,sy,TRUE,FALSE);
+			if(!rn2(30))
+			    (void) mksobj_at(POT_RECOVERY,sx,sy,TRUE,FALSE);
+			/* Now some wands... */
+			if(!rn2(10))
+			    (void) mksobj_at(WAN_HEALING,sx,sy,TRUE,FALSE);
+			if(!rn2(20))
+			    (void) mksobj_at(WAN_EXTRA_HEALING,sx,sy,TRUE,FALSE);
+			if(!rn2(40))
+			    (void) mksobj_at(WAN_FULL_HEALING,sx,sy,TRUE,FALSE);
+			/* And for misc healing objects */
+			if(!rn2(10))
+			    (void) mksobj_at(PILL,sx,sy,TRUE,FALSE);
+			if(!rn2(10))
+			    (void) mksobj_at(SCR_HEALING,sx,sy,TRUE,FALSE);
+			if(!rn2(40))
+			    (void) mksobj_at(MEDICAL_KIT,sx,sy,TRUE,FALSE);
 			break;
 		    case COCKNEST:
 			if(!rn2(3)) {
@@ -528,15 +529,6 @@ struct mkroom *sroom;
 		    case ANTHOLE:
 			if(!rn2(3))
 			    (void) mkobj_at(FOOD_CLASS, sx, sy, FALSE);
-			break;
-		    case ANGELHALL:
-			if(!rn2(10))
-			    (void) mkobj_at(GEM_CLASS, sx, sy, FALSE);
-			break;
-		    case MIMICHALL:
-		    case HUMANHALL:
-			if(!rn2(3))
-			    (void) mkobj_at(RANDOM_CLASS, sx, sy, FALSE);
 			break;
 		}
 	    }
@@ -588,44 +580,19 @@ struct mkroom *sroom;
             case TERRORHALL:
               level.flags.has_terrorhall = 1;
               break;
-            case ELEMHALL:
-              level.flags.has_elemhall = 1;
-              break;
-            case ANGELHALL:
-              level.flags.has_angelhall = 1;
-              break;
-            case MIMICHALL:
-              level.flags.has_mimichall = 1;
-              break;
-            case NYMPHHALL:
-              level.flags.has_nymphhall = 1;
-              break;
-            case SPIDERHALL:
-              level.flags.has_spiderhall = 1;
-              break;
-            case TROLLHALL:
-              level.flags.has_trollhall = 1;
-              break;
             case COINHALL:
               level.flags.has_coinhall = 1;
-              break;
-            case HUMANHALL:
-              level.flags.has_humanhall = 1;
-              break;
-            case GOLEMHALL:
-              level.flags.has_golemhall = 1;
               break;
             case TRAPROOM:
               level.flags.has_traproom = 1;
               break;
+#if 0 /* Deferred for now */
             case GRUEROOM:
               level.flags.has_grueroom = 1;
               break;
+#endif
             case POOLROOM:
               level.flags.has_poolroom = 1;
-              break;
-            case STATUEROOM:
-              level.flags.has_statueroom = 1;
               break;
 	}
 }
@@ -774,6 +741,57 @@ fungus()
 	return ((mvitals[mtyp].mvflags & G_GONE) ?
 			(struct permonst *)0 : &mons[mtyp]);
 }
+
+/** Create a special room with trees, fountains and nymphs.
+ * @author Pasi Kallinen
+ */
+STATIC_OVL void
+mkgarden(croom)
+struct mkroom *croom; /* NULL == choose random room */
+{
+    register int tryct = 0;
+    boolean maderoom = FALSE;
+    coord pos;
+    register int i, tried;
+
+    while ((tryct++ < 25) && !maderoom) {
+	register struct mkroom *sroom = croom ? croom : &rooms[rn2(nroom)];
+	
+	if (sroom->hx < 0 || (!croom && (sroom->rtype != OROOM ||
+	    !sroom->rlit || has_upstairs(sroom) || has_dnstairs(sroom))))
+	    	continue;
+
+	sroom->rtype = GARDEN;
+	maderoom = TRUE;
+	level.flags.has_garden = 1;
+
+	tried = 0;
+	i = rn1(5,3);
+	while ((tried++ < 50) && (i >= 0) && somexy(sroom, &pos)) {
+	    struct permonst *pmon;
+	    if (!MON_AT(pos.x, pos.y) && (pmon = mkclass(S_NYMPH,0))) {
+		struct monst *mtmp = makemon(pmon, pos.x,pos.y, NO_MM_FLAGS);
+		mtmp->msleeping = 1;
+		i--;
+	    }
+	}
+	tried = 0;
+	i = rn1(3,3);
+	while ((tried++ < 50) && (i >= 0) && somexy(sroom, &pos)) {
+	    if (levl[pos.x][pos.y].typ == ROOM && !MON_AT(pos.x,pos.y) &&
+		!nexttodoor(pos.x,pos.y)) {
+		if (rn2(3))
+		  levl[pos.x][pos.y].typ = TREE;
+		else {
+		    levl[pos.x][pos.y].typ = FOUNTAIN;
+		    level.flags.nfountains++;
+		}
+		i--;
+	    }
+	}
+    }
+}
+
 
 STATIC_OVL void
 mkswamp()	/* Michiel Huisjes & Fred de Wilde */
@@ -1149,7 +1167,7 @@ mkpoolroom()
 
 	level.flags.has_poolroom = 1;
 }
-
+#if 0
 void
 mkstatueroom()
 {
@@ -1188,7 +1206,7 @@ mkstatueroom()
 	level.flags.has_statueroom = 1;
 
 }
-
+#endif
 void
 save_rooms(fd)
 int fd;

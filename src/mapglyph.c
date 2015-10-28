@@ -198,6 +198,8 @@ unsigned *ospecial;
 				color = CLR_GREEN;
 			} else if(*in_rooms(x,y,SWAMP)) {
 				color = CLR_GREEN;
+			} else if(*in_rooms(x,y,GARDEN)) {
+				color = CLR_BRIGHT_GREEN;
 			} else if(*in_rooms(x,y,MORGUE)) {
 				color = CLR_BLACK;
 			} else if(*in_rooms(x,y,BARRACKS)) {
@@ -226,20 +228,6 @@ unsigned *ospecial;
 				color = CLR_ORANGE;
 			} else if(*in_rooms(x,y,TERRORHALL)) {
 				color = CLR_BRIGHT_CYAN;
-			} else if(*in_rooms(x,y,ELEMHALL)) {
-				color = CLR_GRAY;
-			} else if(*in_rooms(x,y,ANGELHALL)) {
-				color = CLR_WHITE;
-			} else if(*in_rooms(x,y,NYMPHHALL)) {
-				color = CLR_GREEN;
-			} else if(*in_rooms(x,y,SPIDERHALL)) {
-				color = CLR_GRAY;
-			} else if(*in_rooms(x,y,TROLLHALL)) {
-				color = CLR_BROWN;
-			} else if(*in_rooms(x,y,HUMANHALL)) {
-				color = CLR_BRIGHT_BLUE;
-			} else if(*in_rooms(x,y,GOLEMHALL)) {
-				color = CLR_GRAY;
 			} else if(*in_rooms(x,y,COINHALL)) {
 				color = CLR_YELLOW;
 			} else if(*in_rooms(x,y,DOUGROOM)) {

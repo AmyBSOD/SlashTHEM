@@ -1634,6 +1634,7 @@ boolean prefilled;
 				}
 			}
 		    break;
+		case GARDEN:
 		case COURT:
 		case ZOO:
 		case BEEHIVE:
@@ -1642,22 +1643,13 @@ boolean prefilled;
 		case FUNGUSFARM:
 		case MORGUE:
 		case BARRACKS:
-		case HUMANHALL:
-		case MIMICHALL:
 		case CLINIC:
 		case TERRORHALL:
-		case ELEMHALL:
-		case ANGELHALL:
-		case NYMPHHALL:
-		case SPIDERHALL:
-		case TROLLHALL:
-		case GOLEMHALL:
 		case COINHALL:
 		case ARMORY:
 		case TRAPROOM:
 		case POOLROOM:
-		case GRUEROOM:
-		case STATUEROOM:
+		/*case GRUEROOM:*/
 		case DOUGROOM:
 		    fill_zoo(croom);
 		    break;
@@ -1670,6 +1662,9 @@ boolean prefilled;
 	    case ZOO:
 	    case DOUGROOM:
 		level.flags.has_zoo = TRUE;
+		break;
+	    case GARDEN:
+		level.flags.has_garden = TRUE;
 		break;
 	    case COURT:
 		level.flags.has_court = TRUE;
@@ -1692,44 +1687,19 @@ boolean prefilled;
 	    case CLINIC:
 		level.flags.has_clinic = TRUE;
 		break;
-	    case MIMICHALL:
-		level.flags.has_mimichall = TRUE;
-		break;
-	    case ANGELHALL:
-		level.flags.has_angelhall = TRUE;
-		break;
-	    case ELEMHALL:
-		level.flags.has_elemhall = TRUE;
-		break;
-	    case NYMPHHALL:
-		level.flags.has_nymphhall = TRUE;
-		break;
-	    case GOLEMHALL:
-		level.flags.has_golemhall = TRUE;
-		break;
+#if 0
 	    case GRUEROOM:
 		level.flags.has_grueroom = TRUE;
 		break;
+#endif
 	    case POOLROOM:
 		level.flags.has_poolroom = TRUE;
-		break;
-	    case STATUEROOM:
-		level.flags.has_statueroom = TRUE;
 		break;
 	    case TRAPROOM:
 		level.flags.has_traproom = TRUE;
 		break;
 	    case COINHALL:
 		level.flags.has_coinhall = TRUE;
-		break;
-	    case SPIDERHALL:
-		level.flags.has_spiderhall = TRUE;
-		break;
-	    case TROLLHALL:
-		level.flags.has_trollhall = TRUE;
-		break;
-	    case HUMANHALL:
-		level.flags.has_humanhall = TRUE;
 		break;
 	    case TERRORHALL:
 		level.flags.has_terrorhall = TRUE;
