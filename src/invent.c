@@ -2163,11 +2163,11 @@ struct obj *obj;
 	else if (obj->otyp == CANDELABRUM_OF_INVOCATION)
 		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
 				"Light or extinguish the candelabrum", MENU_UNSELECTED);
-	else if ((obj->otyp == WAX_CANDLE || obj->otyp == TALLOW_CANDLE) &&
+	else if ((obj->otyp == WAX_CANDLE || obj->otyp == TALLOW_CANDLE || obj->otyp == MAGIC_CANDLE) &&
 			carrying(CANDELABRUM_OF_INVOCATION))
 		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
 				"Attach this candle to the candelabrum", MENU_UNSELECTED);
-	else if (obj->otyp == WAX_CANDLE || obj->otyp == TALLOW_CANDLE)
+	else if (obj->otyp == WAX_CANDLE || obj->otyp == TALLOW_CANDLE || obj->otyp == MAGIC_CANDLE)
 		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
 				"Light or extinguish this candle", MENU_UNSELECTED);
 	else if (obj->otyp == OIL_LAMP || obj->otyp == MAGIC_LAMP ||
@@ -2217,6 +2217,38 @@ struct obj *obj;
 	else if (obj->otyp == PICK_AXE || obj->otyp == DWARVISH_MATTOCK)
 		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
 				"Dig with this digging tool", MENU_UNSELECTED);
+	/* 5lo: Additions for Slash'EM and other tools */
+	else if (obj->otyp == FISHING_POLE)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Go fishing", MENU_UNSELECTED);
+	else if (obj->otyp == GOD_O_METER || obj->otyp == HITCHHIKER_S_GUIDE_TO_THE_GALA)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Read this electronic device", MENU_UNSELECTED);
+	else if (obj->otyp == CHEMISTRY_SET)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Create a potion via chemistry", MENU_UNSELECTED);
+	else if (obj->otyp == PACK_OF_FLOPPIES)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Read a disk in the box", MENU_UNSELECTED);
+#ifdef FIREARMS
+	else if (obj->otyp == FRAG_GRENADE || obj->otyp == GAS_GRENADE)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Arm this grenade", MENU_UNSELECTED);
+	else if (obj->otyp == STICK_OF_DYNAMITE)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Light this stick of dynamite", MENU_UNSELECTED);
+	else if (obj->otyp == SUBMACHINE_GUN || obj->otyp == ASSAULT_RIFLE)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Switch between Single, Burst, and Automatic modes", MENU_UNSELECTED);
+	else if (obj->otyp == AUTO_SHOTGUN)
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Switch between Burst and Automatic modes", MENU_UNSELECTED);
+#endif
+#ifdef LIGHTSABERS
+	else if (is_lightsaber(obj))
+		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
+				"Activate or deactivate this lightsaber", MENU_UNSELECTED);
+#endif
 	else if (obj->oclass == WAND_CLASS)
 		add_menu(win, NO_GLYPH, &any, 'a', 0, ATR_NONE,
 				"Break this wand", MENU_UNSELECTED);
@@ -2359,7 +2391,12 @@ struct obj *obj;
 		add_menu(win, NO_GLYPH, &any, 'w', 0, ATR_NONE,
 				"Unwield your weapon", MENU_UNSELECTED);
 	} else if (obj->oclass == WEAPON_CLASS || obj->otyp == PICK_AXE ||
-			obj->otyp == UNICORN_HORN)
+			obj->otyp == UNICORN_HORN || obj->otyp == SPOON ||
+			obj->otyp == TORCH 
+#ifdef LIGHTSABERS
+			|| is_lightsaber(obj) 
+#endif
+			)
 		add_menu(win, NO_GLYPH, &any, 'w', 0, ATR_NONE,
 				"Wield this as your weapon", MENU_UNSELECTED);
 	else if (obj->otyp == TIN_OPENER)
