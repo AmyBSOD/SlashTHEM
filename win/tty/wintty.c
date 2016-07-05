@@ -1433,11 +1433,11 @@ struct WinDesc *cw;
 #ifndef WIN32CON
 			  *cp && (int) ++ttyDisplay->curx < (int) ttyDisplay->cols;
 			  cp++, n++)
+		    (void) pututf8char((unsigned char) *cp);
 #else
 			  *cp && (int) ttyDisplay->curx < (int) ttyDisplay->cols;
 			  cp++, n++, ttyDisplay->curx++)
 #endif
-		    (void) pututf8char((unsigned char) *cp);
 #ifdef MENU_COLOR
 		   if (iflags.use_menu_color && menucolr) {
 		      if (color != NO_COLOR) term_end_color();
@@ -1674,11 +1674,11 @@ struct WinDesc *cw;
 #ifndef WIN32CON
 		    *cp && (int) ++ttyDisplay->curx < (int) ttyDisplay->cols;
 		    cp++)
+	    (void) pututf8char(*cp);
 #else
 		    *cp && (int) ttyDisplay->curx < (int) ttyDisplay->cols;
 		    cp++, ttyDisplay->curx++)
 #endif
-	    (void) pututf8char(*cp);
 	    term_end_attr(attr);
 	}
     }
@@ -2097,11 +2097,15 @@ tty_putstr(window, attr, str)
 		cw->cury++;
 		tty_curs(window, cw->curx+1, cw->cury);
 	    }
+#ifndef WIN32CON
 	    if (iflags.UTF8graphics) {
 		    pututf8char(*str);
 	    } else {
 		    (void) putchar(*str);
 	    }
+#else
+	    (void) putchar(*str);
+#endif
 	    str++;
 	    ttyDisplay->curx++;
 	}
