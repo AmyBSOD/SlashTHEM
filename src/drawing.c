@@ -668,6 +668,7 @@ static glyph_t utf8_graphics[MAXPCHARS] = {
 	0x2261,	/* S_bars:	IDENTICAL TO */
 	0x03a8,	/* S_tree:	GREEK CAPITAL LETTER PSI */
 	0x00b7,	/* S_room:	MIDDLE DOT */
+	g_FILLER(S_stone),	/* S_darkroom */
 	g_FILLER(S_corr),
 	g_FILLER(S_litcorr),
 	g_FILLER(S_upstair),
@@ -678,6 +679,7 @@ static glyph_t utf8_graphics[MAXPCHARS] = {
 	0x2020,	/* S_grave:	DAGGER */
 	g_FILLER(S_throne),
 	g_FILLER(S_sink),
+	g_FILLER(S_toilet),
 	0x00b6,	/* S_fountain:	PILCROW SIGN */
 	0x224b,	/* S_pool:	TRIPLE TILDE */
 	0x00b7,	/* S_ice:	MIDDLE DOT */
@@ -711,6 +713,10 @@ static glyph_t utf8_graphics[MAXPCHARS] = {
 	g_FILLER(S_magic_trap),
 	g_FILLER(S_anti_magic_trap),
 	g_FILLER(S_polymorph_trap),
+	g_FILLER(S_ice_trap),
+	g_FILLER(S_spear_trap),
+	g_FILLER(S_falling_rocks_trap),
+	g_FILLER(S_magic_beam_trap),
 	0x2502,	/* S_vbeam:	BOX DRAWINGS LIGHT VERTICAL */
 	0x2500,	/* S_hbeam:	BOX DRAWINGS LIGHT HORIZONTAL */
 	g_FILLER(S_lslant),
