@@ -9,11 +9,6 @@
 #include "dlb.h"
 #include "edog.h"
 
-#ifdef UNICODE
-#include <wchar.h>
-#include "unicode.h"
-#endif
-
 STATIC_DCL boolean FDECL(is_swallow_sym, (int));
 STATIC_DCL int FDECL(append_str, (char *, const char *));
 STATIC_DCL struct permonst * FDECL(lookat, (int, int, char *, char *));
@@ -696,7 +691,7 @@ do_look(quick)
 		    } else if (level.flags.lethe && !strcmp(x_str, "water")) {
 			Sprintf(out_str, "%c       sparkling water", sym);
 		    } else {
-				Sprintf(out_str,  "%C       %s", sym, 
+			Sprintf(out_str, "%c       %s", sym,
 				article == 2 ? the(x_str) :
 				article == 1 ? an(x_str) : x_str);
 		    }

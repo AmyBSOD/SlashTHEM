@@ -17,10 +17,6 @@
 #include "patchlevel.h"
 #endif
 
-# if defined(UNICODE)
-#include <wchar.h>
-#endif
-
 #ifdef TTY_GRAPHICS
 
 #ifdef MAC
@@ -1921,11 +1917,7 @@ tty_putsym(window, x, y, ch)
     case NHW_MAP:
     case NHW_BASE:
 	tty_curs(window, x, y);
-#ifdef UNICODE
-	putwidechar(uni_equiv((ch)));
-#else
 	(void) putchar(ch);
-#endif
 	ttyDisplay->curx++;
 	cw->curx++;
 	break;
@@ -2750,14 +2742,7 @@ tty_print_glyph(window, x, y, glyph)
       xputg(glyph,ch,special);
     else
 #endif
-# if defined(UNICODE)
-	if( iflags.eight_bit_tty || iflags.IBMgraphics )
-		putwidechar(uni_equiv(ch));
-	else
-		g_putch(ch);
-# else
- 	g_putch(ch);		/* print the character */
-# endif
+		g_putch(ch);		/* print the character */
 
     if (reverse_on) {
 	term_end_attr(ATR_INVERSE);

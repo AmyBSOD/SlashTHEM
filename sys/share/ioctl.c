@@ -68,10 +68,6 @@ struct termio termio;
 #include "tcap.h"	/* for LI and CO */
 #endif
 
-#ifdef UNICODE
-extern void NDECL(utf8_mapon);
-extern void NDECL(utf8_mapoff);
-#else 
 #ifdef _M_UNIX
 extern void NDECL(sco_mapon);
 extern void NDECL(sco_mapoff);
@@ -84,7 +80,6 @@ extern void NDECL(linux_mapoff);
 #ifdef LINUX
 extern void NDECL(linux_mapon);
 extern void NDECL(linux_mapoff);
-#endif
 #endif
 
 #ifdef AUX
@@ -170,9 +165,6 @@ dosuspend()
 # ifdef SIGTSTP
 	if(signal(SIGTSTP, SIG_IGN) == SIG_DFL) {
 		suspend_nhwindows((char *)0);
-#  ifdef UNICODE
-		utf8_mapon();
-#  else
 #  ifdef _M_UNIX
 		sco_mapon();
 #  endif
@@ -182,16 +174,12 @@ dosuspend()
 #  ifdef __linux__
 		linux_mapon();
 #  endif
-#  endif
 		(void) signal(SIGTSTP, SIG_DFL);
 #  ifdef AUX
 		( void ) kill ( 0 , SIGSTOP ) ;
 #  else
 		(void) kill(0, SIGTSTP);
 #  endif
-#  ifdef UNICODE
-		utf8_mapoff();
-#  else
 #  ifdef LINUX
 		linux_mapoff();
 #  endif
@@ -200,7 +188,6 @@ dosuspend()
 #  endif
 #  ifdef __linux__
 		linux_mapoff();
-#  endif
 #  endif
 		resume_nhwindows();
 	} else {

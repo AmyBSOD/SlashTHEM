@@ -61,10 +61,6 @@
 /* #define GL_GRAPHICS */	/* OpenGL graphics */
 /* #define SDL_GRAPHICS */	/* Software SDL graphics */
 
-/* Define to display IBMGraphics via UTF-8 */
-/* #define UNICODE */ /* 5lo: Disabled because it breaks pokedex on unix
-                       * and breaks windows build entirely. */
-
 /*
  * Define the default window system.  This should be one that is compiled
  * into your system (see defines above).  Known window systems are:
