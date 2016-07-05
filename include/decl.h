@@ -580,6 +580,11 @@ E struct _plinemsg *pline_msg;
 #define MSGTYP_NOSHOW	2
 #define MSGTYP_STOP	3
 
+/* FIXME: These should be integrated into objclass and permonst structs,
+   but that invalidates saves */
+E glyph_t objclass_unicode_codepoint[NUM_OBJECTS];
+E glyph_t permonst_unicode_codepoint[NUMMONS];
+
 #undef E
 
 #endif /* DECL_H */

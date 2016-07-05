@@ -14,6 +14,11 @@ NEARDATA struct instance_flags iflags;	/* provide linkage */
 #include "tcap.h"
 #include <ctype.h>
 #endif
+#include <errno.h>
+
+#ifdef HAVE_SETLOCALE
+#include <locale.h>
+#endif
 
 #if defined(GL_GRAPHICS) || defined(SDL_GRAPHICS)
 #include "winGL.h"  /* Sdlgl_parse_options */
@@ -253,6 +258,11 @@ static struct Bool_Opt
 	{"tombstone",&flags.tombstone, TRUE, SET_IN_GAME},
 	{"toptenwin",&flags.toptenwin, FALSE, SET_IN_GAME},
 	{"travel", &iflags.travelcmd, TRUE, SET_IN_GAME},
+#ifdef UTF8_GLYPHS
+	{"UTF8graphics", &iflags.UTF8graphics, FALSE, SET_IN_GAME},
+#else
+	{"UTF8graphics", (boolean *)0, FALSE, SET_IN_FILE},
+#endif
 #ifdef WIN32CON
 	{"use_inverse",   &iflags.wc_inverse, TRUE, SET_IN_GAME},		/*WC*/
 #else
@@ -646,6 +656,11 @@ initoptions()
 		monsyms[i] = (uchar) def_monsyms[i];
 	for (i = 0; i < WARNCOUNT; i++)
 		warnsyms[i] = def_warnsyms[i].sym;
+/* FIXME: These should be integrated into objclass and permonst structs,
+   but that invalidates saves */
+	memset(objclass_unicode_codepoint, 0, sizeof(objclass_unicode_codepoint));
+	memset(permonst_unicode_codepoint, 0, sizeof(permonst_unicode_codepoint));
+
 	iflags.bouldersym = 0;
 	iflags.travelcc.x = iflags.travelcc.y = -1;
 	flags.warnlevel = /*1*/0;
@@ -685,6 +700,14 @@ initoptions()
 		switch_graphics(DEC_GRAPHICS);
 	}
 # endif
+#  ifdef HAVE_SETLOCALE
+	/* try to detect if a utf-8 locale is supported */
+	if (setlocale(LC_ALL, "") &&
+	    (opts = setlocale(LC_CTYPE, NULL)) &&
+	    ((strstri(opts, "utf8") != 0) || (strstri(opts, "utf-8") != 0))) {
+		switch_graphics(UTF8_GRAPHICS);
+	}
+#  endif
 #endif /* UNIX || VMS */
 
 #ifdef MAC_GRAPHICS_ENV
@@ -984,7 +1007,7 @@ register char *opts;
 const char *optype;
 int maxlen, offset;
 {
-	uchar translate[MAXPCHARS+1];
+	glyph_t translate[MAXPCHARS+1];
 	int length, i;
 
 	if (!(opts = string_for_env_opt(optype, opts, FALSE)))
@@ -995,7 +1018,7 @@ int maxlen, offset;
 	if (length > maxlen) length = maxlen;
 	/* match the form obtained from PC configuration files */
 	for (i = 0; i < length; i++)
-		translate[i] = (uchar) opts[i];
+		translate[i] = (glyph_t) opts[i];
 	assign_graphics(translate, length, maxlen, offset);
 }
 
@@ -1473,6 +1496,190 @@ char *start;
 		ok = parse_status_color_option(start) && ok;
 	}
 	return ok;
+}
+
+/** Split up a string that matches name:value or 'name':value and
+ * return name and value separately. */
+static boolean
+parse_extended_option(str, option_name, option_value)
+const char *str;
+char *option_name;	/**< Output string buffer for option name */
+char *option_value;	/**< Output string buffer for option value */
+{
+	int i;
+	char *tmps, *cs;
+	char buf[BUFSZ];
+
+	if (!str) return FALSE;
+
+	strncpy(buf, str, BUFSZ);
+
+	/* remove comment*/
+	cs = strrchr(buf, '#');
+	if (cs) *cs = '\0';
+
+	/* trim whitespace at end of string */
+	i = strlen(buf)-1;
+	while (i>=0 && isspace(buf[i])) {
+		buf[i--] = '\0';
+	}
+
+	/* extract value */
+	cs = strchr(buf, ':');
+	if (!cs) return FALSE;
+
+	tmps = cs;
+	tmps++;
+	/* skip whitespace at start of string */
+	while (*tmps && isspace(*tmps)) tmps++;
+
+	strncpy(option_value, tmps, BUFSZ);
+
+	/* extract option name */
+	*cs = '\0';
+	tmps = buf;
+	if ((*tmps == '"') || (*tmps == '\'')) {
+		cs--;
+		while (isspace(*cs)) cs--;
+		if (*cs == *tmps) {
+			*cs = '\0';
+			tmps++;
+		}
+	}
+
+	strncpy(option_name, tmps, BUFSZ);
+
+	return TRUE;
+}
+
+/** Parse a string as Unicode codepoint and return the numerical codepoint.
+ * Valid codepoints are decimal numbers or U+FFFF and 0xFFFF for hexadecimal
+ * values. */
+int
+parse_codepoint(codepoint)
+char *codepoint;
+{
+	char *ptr, *endptr;
+	int num=0, base;
+
+	/* parse codepoint */
+	if (!strncmpi(codepoint, "u+", 2) ||
+	    !strncmpi(codepoint, "0x", 2)) {
+		/* hexadecimal */
+		ptr = &codepoint[2];
+		base = 16;
+	} else {
+		/* decimal */
+		ptr = &codepoint[0];
+		base = 10;
+	}
+	errno = 0;
+	num = strtol(ptr, &endptr, base);
+	if (errno != 0 || *endptr != 0 || endptr == ptr) {
+		return FALSE;
+	}
+	return num;
+}
+
+/** Parse '"monster name":unicode_codepoint' and change symbol in
+ * monster list. */
+boolean
+parse_monster_symbol(str)
+const char *str;
+{
+	char monster[BUFSZ];
+	char codepoint[BUFSZ];
+	int i, num=0;
+
+	if (!parse_extended_option(str, monster, codepoint)) {
+		return FALSE;
+	}
+
+	num = parse_codepoint(codepoint);
+	if (num < 0) {
+		return FALSE;
+	}
+
+	/* find monster */
+	for (i=0; mons[i].mlet != 0; i++) {
+		if (!strcmpi(monster, mons[i].mname)) {
+			permonst_unicode_codepoint[i] = num;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+/** Parse '"object name":unicode_codepoint' and change symbol in
+ * object list. */
+boolean
+parse_object_symbol(str)
+const char *str;
+{
+       char object[BUFSZ];
+       char codepoint[BUFSZ];
+       int i, num=0;
+
+       if (!parse_extended_option(str, object, codepoint)) {
+               return FALSE;
+       }
+
+       num = parse_codepoint(codepoint);
+       if (num < 0) {
+               return FALSE;
+       }
+
+       /* find object */
+       for (i=0; obj_descr[i].oc_name || obj_descr[i].oc_descr; i++) {
+               if ((obj_descr[i].oc_name && obj_descr[i].oc_descr) ||
+                   (obj_descr[i].oc_descr)) {
+                       /* Items with both descriptive and actual name or only
+                        * descriptive name. */
+                       if (!strcmpi(object, obj_descr[i].oc_descr)) {
+                               objclass_unicode_codepoint[i] = num;
+                               return TRUE;
+                       }
+               } else if (obj_descr[i].oc_name) {
+                       /* items with only actual name like "carrot" */
+                       if (!strcmpi(object, obj_descr[i].oc_name)) {
+                               objclass_unicode_codepoint[i] = num;
+                               return TRUE;
+                       }
+               }
+       }
+       return FALSE;
+}
+
+
+/** Parse '"dungeon feature":unicode_codepoint' and change symbol in
+ * UTF8graphics. */
+boolean
+parse_symbol(str)
+const char *str;
+{
+	char feature[BUFSZ];
+	char codepoint[BUFSZ];
+	int i, num;
+
+	if (!parse_extended_option(str, feature, codepoint)) {
+		return FALSE;
+	}
+
+	num = parse_codepoint(codepoint);
+	if (num < 0) {
+		return FALSE;
+	}
+
+	/* find dungeon feature */
+	for (i=0; i < MAXPCHARS; i++) {
+		if (!strcmpi(feature, defsyms[i].explanation)) {
+			assign_utf8graphics_symbol(i, num);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 
@@ -2800,6 +3007,9 @@ goodfruit:
 # ifdef MAC_GRAPHICS_ENV
 				 || (boolopt[i].addr) == &iflags.MACgraphics
 # endif
+# ifdef UTF8_GLYPHS
+				 || (boolopt[i].addr) == &iflags.UTF8graphics
+# endif
 				) {
 # ifdef REINCARNATION
 			    /* [ALI] GTK port may call doset() after initial
@@ -2824,6 +3034,11 @@ goodfruit:
 			    if ((boolopt[i].addr) == &iflags.MACgraphics)
 				switch_graphics(iflags.MACgraphics ?
 						MAC_GRAPHICS : ASCII_GRAPHICS);
+# endif
+# ifdef UTF8_GLYPHS
+			    if ((boolopt[i].addr) == &iflags.UTF8graphics)
+				switch_graphics(iflags.UTF8graphics ?
+						UTF8_GRAPHICS : ASCII_GRAPHICS);
 # endif
 # ifdef REINCARNATION
 			    if (!initial && u.uz.dlevel &&

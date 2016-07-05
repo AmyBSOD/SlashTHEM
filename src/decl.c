@@ -86,6 +86,11 @@ char levels[PATHLEN];		/* where levels are */
 # endif
 #endif /* MICRO || WIN32 */
 
+/* FIXME: These should be integrated into objclass and permonst structs,
+   but that invalidates saves */
+glyph_t objclass_unicode_codepoint[NUM_OBJECTS] = DUMMY;
+glyph_t permonst_unicode_codepoint[NUMMONS] = DUMMY;
+
 
 #ifdef MFLOPPY
 char permbones[PATHLEN];	/* where permanent copy of bones go */

@@ -488,7 +488,7 @@ VOBJ15 = rect.o	    restore.o  rip.o	  rnd.o	     role.o
 VOBJ16 = rumors.o   save.o     school.o   shk.o      shknam.o
 VOBJ17 = sit.o      smith.o    sounds.o   sp_lev.o   spell.o
 VOBJ18 = steal.o    steed.o    timeout.o  topten.o   track.o
-VOBJ19 = trap.o     u_init.o   uhitm.o    vault.o    vision.o
+VOBJ19 = trap.o     u_init.o   uhitm.o    unicode.o  vault.o    vision.o
 VOBJ20 = vis_tab.o  weapon.o   were.o	  wield.o    windows.o
 VOBJ21 = wizard.o   worm.o     worn.o     write.o
 VOBJ22 = zap.o	    light.o    dlb.o      dig.o      teleport.o
@@ -2050,6 +2050,7 @@ track.o: track.c $(HACK_H)
 trap.o: trap.c $(HACK_H)
 u_init.o: u_init.c $(HACK_H)
 uhitm.o: uhitm.c $(HACK_H)
+unicode.o: unicode.c $(HACK_H)
 vault.o: vault.c $(HACK_H) $(INCL)/vault.h
 version.o: version.c $(HACK_H) $(INCL)/date.h $(INCL)/patchlevel.h
 vision.o: vision.c $(HACK_H) $(INCL)/vis_tab.h
